@@ -4,13 +4,10 @@
 
 locals {
 
-  config = yamldecode(
-    file("${path.module}/../platform-config/platform.yaml")
-  )
-
+  unique_indentifier = "${var.project_name}-${var.environment}"
   common_tags = {
-    Project     = local.config.project.name
-    Environment = local.config.project.environment
+    Project     =var.project_name
+    Environment = var.environment
     ManagedBy   = "Terraform"
     Component   = "bootstrap"
   }
@@ -32,20 +29,15 @@ resource "aws_kms_key" "terraform_state" {
 
   description = "KMS key used to encrypt Terraform state"
 
-  enable_key_rotation = try(
-    local.config.kms.enable_key_rotation,
-    true
-  )
+  enable_key_rotation = true
+  
 
-  deletion_window_in_days = try(
-    local.config.kms.deletion_window_in_days,
-    30
-  )
+  deletion_window_in_days = 30
 
   tags = merge(
     local.common_tags,
     {
-      Name = "${local.config.project.name}-terraform-state-kms"
+      Name = "${local.unique_indentifier}-terraform-state-kms"
     }
   )
 }
@@ -56,7 +48,7 @@ resource "aws_kms_key" "terraform_state" {
 
 resource "aws_kms_alias" "terraform_state" {
 
-  name = "alias/${local.config.project.name}-terraform-state"
+  name = "alias/${local.unique_indentifier}-terraform-state"
 
   target_key_id = aws_kms_key.terraform_state.key_id
 }
@@ -67,12 +59,12 @@ resource "aws_kms_alias" "terraform_state" {
 
 resource "aws_s3_bucket" "terraform_state" {
 
-  bucket = local.config.backend.bucket
+  bucket = "${local.unique_indentifier}-terraform-state-bucket"
 
   tags = merge(
     local.common_tags,
     {
-      Name = local.config.backend.bucket
+      Name = "${local.unique_indentifier}-terraform-state-bucket"
     }
   )
 }
@@ -159,30 +151,30 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
 # DynamoDB Lock Table
 ############################################################
 
-resource "aws_dynamodb_table" "terraform_lock" {
+# resource "aws_dynamodb_table" "terraform_lock" {
 
-  name = local.config.backend.lock_table
+#   name = local.config.backend.lock_table
 
-  billing_mode = "PAY_PER_REQUEST"
+#   billing_mode = "PAY_PER_REQUEST"
 
-  hash_key = "LockID"
+#   hash_key = "LockID"
 
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
+#   attribute {
+#     name = "LockID"
+#     type = "S"
+#   }
 
-  point_in_time_recovery {
-    enabled = true
-  }
+#   point_in_time_recovery {
+#     enabled = true
+#   }
 
-  tags = merge(
-    local.common_tags,
-    {
-      Name = local.config.backend.lock_table
-    }
-  )
-}
+#   tags = merge(
+#     local.common_tags,
+#     {
+#       Name = local.config.backend.lock_table
+#     }
+#   )
+# }
 
 ############################################################
 # Useful Information
