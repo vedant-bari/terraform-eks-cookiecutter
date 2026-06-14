@@ -38,7 +38,7 @@ module "eks" {
   # Security Groups
   #################################################
 
-  create_cluster_security_group = true
+  create_security_group = true
   create_node_security_group    = true
 
   #################################################
@@ -54,7 +54,7 @@ module "eks" {
   endpoint_public_access  = var.endpoint_public_access
   endpoint_private_access = var.endpoint_private_access
 
-  public_access_cidrs = var.public_access_cidrs
+  endpoint_public_access_cidrs = var.public_access_cidrs
 
   #################################################
   # Cluster Logging
