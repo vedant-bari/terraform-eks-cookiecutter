@@ -20,3 +20,23 @@ module "eks" {
   min_size           = var.min_size
   max_size           = var.max_size
 }
+
+
+
+module "alb_controller" {
+  source = "../02-modules/alb-controller"
+
+  cluster_name = module.eks.cluster_name
+}
+
+module "external_dns" {
+  source = "../02-modules/external-dns"
+
+  cluster_name = module.eks.cluster_name
+}
+
+module "monitoring" {
+  source = "../02-modules/monitoring"
+
+  cluster_name = module.eks.cluster_name
+}
