@@ -1,13 +1,13 @@
-terraform {
-  required_version = ">= 1.6.0"
+# terraform {
+#   required_version = ">= 1.6.0"
 
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 6.0"
-    }
-  }
-}
+#   required_providers {
+#     aws = {
+#       source  = "hashicorp/aws"
+#       version = ">= 6.0"
+#     }
+#   }
+# }
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -94,6 +94,13 @@ module "eks" {
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "OVERWRITE"
     }
+
+    aws-efs-csi-driver = {
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "OVERWRITE"
+    }
+
+    ###add metric-server and efs drive 
   }
 
   #################################################
