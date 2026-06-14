@@ -6,7 +6,7 @@ echo "====================================="
 echo "Installing EKS Platform Prerequisites"
 echo "====================================="
 
-sudo apt-get update
+# sudo apt-get update
 
 sudo apt-get install -y \
     curl \

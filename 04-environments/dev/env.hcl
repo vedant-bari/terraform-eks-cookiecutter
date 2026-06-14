@@ -35,5 +35,12 @@ locals {
     ]
   }
 
+
+
+  iam = {
+    cluster_role_name = "dev-eks-cluster-role"
+    node_role_name = "dev-eks-node-role"
+  }
+
   
 }
