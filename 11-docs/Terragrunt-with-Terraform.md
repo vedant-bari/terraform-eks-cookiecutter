@@ -1,4 +1,4 @@
-# Terragrunt with Terraform – Short Notebook
+# Terragrunt with Terraform 
 
 ## 1. Introduction
 
