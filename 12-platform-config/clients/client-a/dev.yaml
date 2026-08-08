@@ -5,6 +5,12 @@ client:
 
 environment: "dev"
 
+# Add this new block for the phase 0 bootstrap deployment
+bootstrap:
+  bucket_name: "tf-state-client-a"
+  kms_alias: "alias/tf-state-client-a"
+
+
 vpc:
   create: true
   name: "vpc-client-a-dev"
@@ -36,3 +42,46 @@ vpc:
   enable_flow_logs: true
 
   enable_vpc_endpoints: true
+
+
+eks:
+  cluster_name: "eks-client-a-dev"
+  cluster_version: "1.30"
+  
+  # Production Best Practice: Enable Audit and API logging
+  cluster_enabled_log_types: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+  # NEW: Toggle to bypass IAM TagResource errors during log group creation
+  create_cloudwatch_log_group: false
+
+  # Production Best Practice: Explicitly define multiple node groups
+  node_groups:
+    # 1. Core nodes for system workloads (Always On-Demand)
+    core_nodes:
+      min_size: 1
+      max_size: 3
+      desired_size: 1
+      instance_types: ["t3.medium"]
+      capacity_type: "ON_DEMAND"
+      ami_type: "AL2_x86_64"
+      
+    # 2. Application nodes for your services (Can use Spot instances to save money)
+    app_nodes:
+      min_size: 1
+      max_size: 5
+      desired_size: 1
+      instance_types: ["t3.large", "m5.large"]
+      capacity_type: "SPOT"
+      ami_type: "AL2_x86_64"
+
+  cluster_addons:
+    coredns:
+      most_recent: true
+    kube-proxy:
+      most_recent: true
+    vpc-cni:
+      most_recent: true
+
+  tags:
+    Environment: "dev"
+    Client: "client-a"
