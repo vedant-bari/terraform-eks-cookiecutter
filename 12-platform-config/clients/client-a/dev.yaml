@@ -85,3 +85,8 @@ eks:
   tags:
     Environment: "dev"
     Client: "client-a"
+
+
+cicd:
+  create: true
+  project_name: "test-app"

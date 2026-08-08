@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eks-test-app.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "eks-test-app.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "eks-test-app.fullname" . }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: efs-storage
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: efs-storage
+          persistentVolumeClaim:
+            claimName: {{ include "eks-test-app.fullname" . }}-efs-pvc
