@@ -1,6 +1,7 @@
 output "vpc_id" {
-  description = "VPC ID"
-  value       = module.vpc.vpc_id
+  description = "The ID of the VPC (either created or adopted)"
+  # If create_vpc is true, output the new module's ID. Otherwise, output the existing ID.
+  value       = var.create_vpc ? module.vpc[0].vpc_id : data.aws_vpc.existing[0].id
 }
 
 output "vpc_cidr_block" {
@@ -9,8 +10,9 @@ output "vpc_cidr_block" {
 }
 
 output "private_subnets" {
-  description = "Private subnet IDs"
-  value       = module.vpc.private_subnets
+  description = "List of private subnet IDs for EKS"
+  # If create_vpc is true, output the new subnets. Otherwise, output the provided list.
+  value       = var.create_vpc ? module.vpc[0].private_subnets : var.existing_private_subnet_ids
 }
 
 output "public_subnets" {
@@ -47,3 +49,4 @@ output "default_security_group_id" {
   description = "Default Security Group ID"
   value       = module.vpc.default_security_group_id
 }
+

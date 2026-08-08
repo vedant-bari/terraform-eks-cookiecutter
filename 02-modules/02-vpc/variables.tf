@@ -106,3 +106,21 @@ variable "map_public_ip_on_launch" {
   type        = bool
   default     = true
 }
+
+variable "create_vpc" {
+  description = "Toggle to create a new VPC or use an existing one"
+  type        = bool
+  default     = true
+}
+
+variable "existing_vpc_id" {
+  description = "ID of the existing VPC to adopt"
+  type        = string
+  default     = null
+}
+
+variable "existing_private_subnet_ids" {
+  description = "List of existing private subnets"
+  type        = list(string)
+  default     = []
+}

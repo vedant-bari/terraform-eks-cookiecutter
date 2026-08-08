@@ -1,6 +1,11 @@
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = var.vpc_module_version
+  
+  # MUST BE HARDCODED. Terraform cannot interpolate variables here.
+  version = "6.6.1" 
+
+
+  count = var.create_vpc ? 1 : 0  # <--- This is the magic switch
 
   # VPC Basic Details
   name = var.name
@@ -32,4 +37,11 @@ module "vpc" {
   vpc_tags = var.vpc_tags
 
   map_public_ip_on_launch = var.map_public_ip_on_launch
+}
+
+
+# 2. Fetch the existing VPC ONLY if create_vpc is false
+data "aws_vpc" "existing" {
+  count = var.create_vpc ? 0 : 1
+  id    = var.existing_vpc_id
 }

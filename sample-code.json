@@ -1,0 +1,314 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::680736395115:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::680736395115:user/vedant.bari"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Effect": "Allow",
+          "Principal": {
+              "AWS": "arn:aws:iam::680736395115:group/Terraform-Deployers"
+          },
+          "Action": "sts:AssumeRole"
+      }
+  ]
+}
+
+
+aws sts assume-role \
+  --role-arn arn:aws:iam::680736395115:role/TerraformDeploymentRole-Vedant-Bari \
+  --role-session-name terraform-test
+
+
+
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "EC2AndVPC",
+        "Effect": "Allow",
+        "Action": [
+          "ec2:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "EKS",
+        "Effect": "Allow",
+        "Action": [
+          "eks:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "IAM",
+        "Effect": "Allow",
+        "Action": [
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:GetRole",
+          "iam:UpdateRole",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:PassRole",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:CreatePolicy",
+          "iam:DeletePolicy",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:CreatePolicyVersion",
+          "iam:DeletePolicyVersion",
+          "iam:ListPolicyVersions",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "iam:AddRoleToInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:GetInstanceProfile",
+          "iam:CreateOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:TagOpenIDConnectProvider",
+          "iam:ListRoles",
+          "iam:ListPolicies",
+          "iam:ListInstanceProfiles"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "AutoScaling",
+        "Effect": "Allow",
+        "Action": [
+          "autoscaling:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "ElasticLoadBalancing",
+        "Effect": "Allow",
+        "Action": [
+          "elasticloadbalancing:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "CloudFormation",
+        "Effect": "Allow",
+        "Action": [
+          "cloudformation:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "CloudWatch",
+        "Effect": "Allow",
+        "Action": [
+          "cloudwatch:*",
+          "logs:*",
+          "events:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "ECR",
+        "Effect": "Allow",
+        "Action": [
+          "ecr:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "EFS",
+        "Effect": "Allow",
+        "Action": [
+          "elasticfilesystem:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "KMS",
+        "Effect": "Allow",
+        "Action": [
+          "kms:CreateKey",
+          "kms:DescribeKey",
+          "kms:EnableKey",
+          "kms:DisableKey",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion",
+          "kms:CreateAlias",
+          "kms:DeleteAlias",
+          "kms:UpdateAlias",
+          "kms:ListAliases",
+          "kms:ListKeys",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:GenerateDataKey*",
+          "kms:ReEncrypt*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "SecretsManager",
+        "Effect": "Allow",
+        "Action": [
+          "secretsmanager:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "Route53",
+        "Effect": "Allow",
+        "Action": [
+          "route53:*"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "TerraformStateBucket",
+        "Effect": "Allow",
+        "Action": [
+          "s3:CreateBucket",
+          "s3:DeleteBucket",
+          "s3:ListBucket",
+          "s3:GetBucketLocation",
+          "s3:GetBucketVersioning",
+          "s3:PutBucketVersioning",
+          "s3:GetBucketEncryption",
+          "s3:PutBucketEncryption",
+          "s3:GetBucketPublicAccessBlock",
+          "s3:PutBucketPublicAccessBlock",
+          "s3:GetBucketPolicy",
+          "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy",
+          "s3:PutBucketTagging",
+          "s3:GetBucketTagging"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "TerraformStateObjects",
+        "Effect": "Allow",
+        "Action": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:GetObjectVersion"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "DynamoDBStateLock",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:CreateTable",
+          "dynamodb:DeleteTable",
+          "dynamodb:DescribeTable",
+          "dynamodb:ListTables",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:TagResource"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "STS",
+        "Effect": "Allow",
+        "Action": [
+          "sts:GetCallerIdentity"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }  
+
+
+
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "sts:AssumeRole",
+        "Resource": "arn:aws:iam::680736395115:role/TerraformDeploymentRole-Vedant-Bari"
+      }
+    ]
+  }
+  
+  
+
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": "arn:aws:iam::680736395115:user/terraform-admin-testing"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  }
+
+
+
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "AllowTerraformTestUser",
+        "Effect": "Allow",
+        "Principal": {
+          "AWS": "arn:aws:iam::680736395115:user/terraform-test-user"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  }
+
+
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "AllowAssumeRole",
+        "Effect": "Allow",
+        "Action": "sts:AssumeRole",
+        "Resource": "arn:aws:iam::680736395115:role/Terraform-Assume-Test-Role"
+      }
+    ]
+  }
+
+
+  aws sts assume-role \
+  --role-arn arn:aws:iam::680736395115:role/Terraform-Assume-Test-Role \
+  --role-session-name test
