@@ -1,312 +1,196 @@
+# Terraform + Terragrunt AWS EKS Platform
 
----
+This repository provisions an AWS platform foundation using Terraform modules and Terragrunt environment configuration. The current `client-a/dev` configuration creates Terraform state infrastructure, a VPC, an Amazon EKS cluster, and—in its current in-progress form—a bastion security group.
 
-# 🚀 Terraform + Terragrunt AWS Platform Foundation
+## What is provisioned
 
-This repository provides a **modular, environment-driven Infrastructure-as-Code (IaC) framework** for building and managing AWS infrastructure using:
+The deployment workflow runs these components in order:
 
-* Terraform (modular infrastructure design)
-* Terragrunt (environment orchestration & DRY configs)
-* AWS (EKS-centric platform foundation)
+1. **Bootstrap**: an S3 bucket for Terraform state and a KMS key. DynamoDB locking is supported by the module but disabled by default; the generated backend uses S3 lockfiles.
+2. **VPC**: a VPC with three public and three private subnets across `ap-south-1a`, `ap-south-1b`, and `ap-south-1c`, plus NAT gateways when enabled in configuration.
+3. **Bastion**: currently creates only a security group from the configured ingress/egress rules. The EC2 instance and Terragrunt wiring are not yet implemented.
+4. **EKS**: an EKS cluster with managed `core_nodes` and `app_nodes` node groups, control-plane logging, and AWS-managed CoreDNS, kube-proxy, and VPC CNI add-ons.
 
-It is designed to create a **scalable, production-grade cloud platform** with clear separation between:
+The included Helm chart is a sample NGINX workload with an ALB ingress and EFS persistent volume claim. It requires an existing EFS filesystem plus the AWS Load Balancer Controller and EFS CSI driver; those dependencies are not provisioned by this repository.
 
-* Bootstrap resources
-* Reusable infrastructure modules
-* Environment-specific configurations (dev/prod)
-* Secure IAM and networking foundations
+## Repository layout
 
----
-
-# 🧭 High-Level Goal
-
-The main objective of this repository is to build a **standardized AWS platform foundation** that can:
-
-* Provision AWS networking (VPC)
-* Manage IAM roles and policies (cluster, node, IRSA)
-* Deploy Amazon EKS clusters
-* Support multiple environments (dev, prod, etc.)
-* Enforce modular, reusable infrastructure design
-* Enable GitOps / CI-CD friendly deployments
-
----
-
-# 🏗️ Repository Structure Overview
-
-```
-.
-├── 01-bootstrap
-├── 02-modules
-├── 03-environments
-├── platform-config
-└── scripts
+```text
+01-bootstrap/                         # State bucket and KMS Terraform module entrypoint
+02-modules/
+  01-bootstrap/                       # S3, KMS, optional DynamoDB lock table
+  02-vpc/                             # terraform-aws-modules/vpc/aws wrapper
+  03-bastion/                         # Bastion security-group work in progress
+  04-eks/                             # terraform-aws-modules/eks/aws wrapper
+03-live/
+  root.hcl                            # Generated AWS provider and S3 backend
+  clients/client-a/dev/               # VPC, bastion, and EKS Terragrunt stacks
+12-platform-config/clients/client-a/
+  dev.yaml                            # Environment-specific settings
+13-kubernetes-apps/test-app/          # Sample Helm chart
+scripts/                              # Prerequisite, validation, deploy, and destroy helpers
 ```
 
----
+## Prerequisites
 
-# 📦 Directory Breakdown
+- An AWS account and credentials with permission to create the configured resources.
+- AWS CLI v2, Terraform, Terragrunt, `kubectl`, and Helm.
+- The AWS CLI configured for the target account:
 
-## 🔧 1. `01-bootstrap`
+  ```bash
+  aws configure
+  aws sts get-caller-identity
+  ```
 
-This layer is responsible for **initial Terraform/Terragrunt setup**.
-
-### Purpose:
-
-* Create backend infrastructure (S3, DynamoDB if needed)
-* Setup Terraform state management
-* Initialize baseline AWS requirements for environments
-
-### Example:
-
-```
-01-bootstrap/dev
-```
-
-Used to bootstrap the **dev environment state backend and foundational resources**.
-
----
-
-## 🧱 2. `02-modules` (Reusable Infrastructure Layer)
-
-This is the **core infrastructure library**.
-
-All Terraform modules here are **reusable, environment-agnostic components**.
-
-### Modules include:
-
-### 📌 `01-bootstrap`
-
-* Backend initialization logic
-* Shared foundation resources
-
-### 📌 `02-vpc`
-
-* VPC creation
-* Public / private / database subnets
-* Routing, NAT, IGW
-
-### 📌 `03-iam`
-
-IAM is split into granular submodules:
-
-* `cluster-role` → EKS control plane IAM role
-* `node-role` → Worker node IAM role
-* `irsa` → IAM Roles for Service Accounts
-* `policies` → Managed/custom IAM policies
-
-### 📌 `04-eks`
-
-EKS cluster provisioning module:
-
-* EKS cluster setup
-* Managed node groups (system + application)
-* IRSA enabled
-* AWS managed add-ons
-* Security groups and encryption
-
----
-
-## 🌍 3. `03-environments` (Environment Layer)
-
-This is where **real infrastructure is composed and deployed**.
-
-Each environment (dev/prod) defines:
-
-* Inputs
-* Dependencies
-* Terragrunt orchestration
-* State configuration
-
-### Structure:
-
-```
-03-environments/
-├── dev
-└── prod
-```
-
-### Example (dev):
-
-```
-dev/
-├── vpc
-├── iam
-└── eks
-```
-
-### Responsibilities:
-
-* Wire modules together using Terragrunt
-* Manage dependencies between components
-* Pass environment-specific values (via `env.hcl`)
-* Define remote state per environment
-
----
-
-## ⚙️ 4. `platform-config`
-
-This directory holds **global configuration values** used across environments.
-
-### Examples:
-
-* Shared tagging standards
-* Global AWS account settings
-* Common naming conventions
-* Organization-level policies
-
-This ensures consistency across all environments.
-
----
-
-## 🛠️ 5. `scripts`
-
-Utility scripts for automation and developer productivity.
-
-### Possible use cases:
-
-* Terraform/Terragrunt wrappers
-* AWS login automation
-* Cluster kubeconfig setup
-* Cleanup scripts
-* CI/CD helpers
-
----
-
-# 🔄 Infrastructure Flow (How Everything Works Together)
-
-```
-01-bootstrap
-      │
-      ▼
-S3 + State Backend Ready
-      │
-      ▼
-02-modules (Reusable Infrastructure)
-      │
-      ▼
-03-environments (dev/prod)
-      │
-      ▼
-EKS + VPC + IAM Fully Deployed
-```
-
----
-
-# ☁️ Key Design Principles
-
-## 1. Modular Architecture
-
-Each component is isolated and reusable.
-
-## 2. Environment Isolation
-
-Each environment has:
-
-* Separate state
-* Separate configuration
-* Separate lifecycle
-
-## 3. Terragrunt Orchestration
-
-Used to:
-
-* Avoid duplication
-* Manage dependencies
-* Inject environment variables
-
-## 4. Secure IAM Design
-
-* No hardcoded credentials
-* Role-based access control
-* IRSA enabled for workloads
-
-## 5. Production-Ready EKS Design
-
-* System vs Application node groups
-* Bottlerocket AMI support
-* Managed AWS add-ons
-* Private subnet deployment ready
-
----
-
-# 🚀 Deployment Strategy
-
-### Step 1: Bootstrap
+On Ubuntu/Debian, install the tooling with:
 
 ```bash
-cd 01-bootstrap/dev
+./scripts/install-prerequisites.sh
+```
+
+The installer uses `sudo`, downloads current tool releases, and changes system-wide binaries; review it before running it.
+
+You can check AWS and EKS API access with:
+
+```bash
+./scripts/precheck.sh
+```
+
+## Configure an environment
+
+Edit `12-platform-config/clients/client-a/dev.yaml` before deployment. In particular, set:
+
+- `client.account_id`, `client.region`, and resource names.
+- VPC CIDRs and availability zones appropriate for the region.
+- EKS node group sizing and instance types.
+- A globally unique `bootstrap.bucket_name`.
+- Bastion ingress rules restricted to trusted CIDRs. Do not keep the example password in source control; it is not currently used because the bastion EC2 instance is not implemented.
+
+The state bucket name must be unique across all AWS accounts. Bootstrap state is initially local, so retain that local state securely after creation.
+
+## Deploy with the script
+
+Run deployment from the repository root. The script takes a client name and environment matching the configuration path.
+
+```bash
+./scripts/deploy-env.sh client-a dev
+```
+
+For each stage, the script runs `terragrunt init`, `validate`, and `plan`, then asks for confirmation before applying. After EKS deploys, it runs `aws eks update-kubeconfig` and prints a command to verify nodes.
+
+The intended sequence is:
+
+```text
+bootstrap → 02-vpc → 03-bastion → 04-eks → kubeconfig
+```
+
+> **Current limitation:** `03-bastion` is included in the script but is incomplete, so the deployment will fail when it reaches that stage. Until it is implemented, deploy bootstrap, VPC, and EKS manually as shown below, or remove `03-bastion` from the script's `COMPONENTS` array.
+
+### How `deploy-env.sh` works
+
+`scripts/deploy-env.sh` is an interactive wrapper around Terragrunt. Its first two positional arguments are the client name and environment:
+
+```bash
+./scripts/deploy-env.sh <client-name> <environment>
+```
+
+For `./scripts/deploy-env.sh client-a dev`, it sets its working paths to the following locations:
+
+| Stage | Path | Action |
+| --- | --- | --- |
+| Bootstrap | `01-bootstrap/clients/client-a/dev` | Creates the state bucket and KMS key. |
+| VPC | `03-live/clients/client-a/dev/02-vpc` | Creates or adopts the configured VPC. |
+| Bastion | `03-live/clients/client-a/dev/03-bastion` | Runs only when that directory exists. Currently incomplete. |
+| EKS | `03-live/clients/client-a/dev/04-eks` | Creates the EKS cluster and managed node groups. |
+
+For bootstrap and every existing live component, the script performs this sequence:
+
+```text
+terragrunt init → terragrunt validate → terragrunt plan → confirmation prompt → terragrunt apply -auto-approve
+```
+
+`-auto-approve` is safe here only because the script prompts after displaying the plan. The script exits immediately on a command failure (`set -e`) or if you answer anything other than `y` or `Y` at a prompt.
+
+After the infrastructure loop, it reads `region` and `cluster_name` from `12-platform-config/clients/<client-name>/<environment>.yaml` and runs:
+
+```bash
+aws eks update-kubeconfig --region <region> --name <cluster-name>
+```
+
+Run the script only from the repository root. It uses the current directory (`pwd`) as its base path, so running it from another directory will cause its relative paths to fail.
+
+## Manual deployment
+
+From the repository root:
+
+```bash
+cd 01-bootstrap/clients/client-a/dev
+terragrunt init
+terragrunt validate
+terragrunt plan
 terragrunt apply
 ```
 
-### Step 2: Deploy VPC
+Then deploy the VPC:
 
 ```bash
-cd 03-environments/dev/vpc
+cd ../../../../03-live/clients/client-a/dev/02-vpc
+terragrunt init
+terragrunt validate
+terragrunt plan
 terragrunt apply
 ```
 
-### Step 3: Deploy IAM
+Then deploy EKS:
 
 ```bash
-cd 03-environments/dev/iam
+cd ../04-eks
+terragrunt init
+terragrunt validate
+terragrunt plan
 terragrunt apply
 ```
 
-### Step 4: Deploy EKS
+Configure `kubectl` after EKS is ready:
 
 ```bash
-cd 03-environments/dev/eks
-terragrunt apply
+aws eks update-kubeconfig --region ap-south-1 --name eks-client-a-dev
+kubectl get nodes
 ```
 
----
+## Deploy the sample Helm chart
 
-# 📈 Why This Architecture is Powerful
+After installing the required controllers and setting a real EFS file-system ID in `13-kubernetes-apps/test-app/values.yaml`:
 
-✔ Fully scalable multi-environment design
-✔ Clean separation of concerns
-✔ Reusable Terraform modules
-✔ Terragrunt reduces duplication
-✔ Easy onboarding for new engineers
-✔ Production-ready EKS foundation
-✔ Supports platform engineering practices
+```bash
+helm upgrade --install eks-test-app ./13-kubernetes-apps/test-app
+kubectl get pods,svc,ingress,pv,pvc
+```
 
----
+## Destroy
 
-# 🔮 Future Enhancements
+The destroy helper is interactive:
 
-Planned improvements:
+```bash
+./scripts/destroy-env.sh client-a dev
+```
 
-* GitOps integration (ArgoCD / FluxCD)
-* Karpenter-based autoscaling
-* Centralized logging (OpenSearch / Loki)
-* Observability stack (Prometheus + Grafana)
-* Multi-account AWS Organizations support
-* CI/CD pipelines for Terragrunt automation
+It currently destroys EKS, then VPC, then bootstrap. Do **not** use it after creating bastion resources: it does not include `03-bastion`, and the remaining security group can prevent VPC deletion. Remove bastion resources first or update the destroy order to run bastion before VPC. Destroying bootstrap deletes the Terraform state bucket and KMS key; use this only when permanently removing the environment.
 
----
+## Security and operational notes
 
-# 👨‍💻 Target Users
+- The EKS API endpoint is publicly accessible in the current module configuration. Restrict it with an explicit CIDR allowlist before production use.
+- Avoid `0.0.0.0/0` SSH ingress and never commit real passwords or credentials to YAML.
+- The bootstrap S3 bucket has `force_destroy = true`; all object versions can be removed during destruction.
+- Pin container image tags instead of using mutable tags such as `latest`.
+- Run formatting and validation before a pull request:
 
-This repository is designed for:
+  ```bash
+  terraform fmt -check -recursive
+  terragrunt hcl format --check
+  helm lint 13-kubernetes-apps/test-app
+  ```
 
-* DevOps Engineers
-* Platform Engineers
-* Cloud Architects
-* SRE teams
-* Infrastructure automation teams
+## Status
 
----
-
-# 📜 License
-
-Internal platform engineering repository (adapt for organizational use).
-
----
-
-If you want next upgrades, I can also create:
-
-* 📊 Architecture diagram (VPC → IAM → EKS flow)
-* 📦 Cookiecutter template version of this repo
-* ⚙️ CI/CD pipeline for Terragrunt (GitHub Actions / GitLab CI)
-* 🧠 Interview explanation script (how to explain this design in interviews)
+The VPC and EKS stacks are the implemented infrastructure path. Bastion support, VPC flow logs/endpoints, private EKS endpoint access, subnet discovery tags, IAM/IRSA configuration, and the Helm chart's AWS dependencies are future work needed for a production-ready platform.
