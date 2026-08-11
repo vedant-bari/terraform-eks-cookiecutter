@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+
+id -u ${username} >/dev/null 2>&1 || useradd --create-home --shell /bin/bash ${username}
+printf '%s:%s\n' '${username}' "$(printf '%s' '${password_b64}' | base64 --decode)" | chpasswd

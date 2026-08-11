@@ -14,6 +14,8 @@
 # }
 
 
+
+
 resource "aws_kms_key" "terraform" {
   description             = "KMS key for Terraform state encryption"
   deletion_window_in_days = var.kms_deletion_window
@@ -282,7 +284,4 @@ resource "aws_dynamodb_table" "terraform_lock" {
 #     kms_key_id     = aws_kms_key.terraform_state.arn
 #   }
 # }
-
-
-
 

@@ -87,6 +87,37 @@ eks:
     Client: "client-a"
 
 
-cicd:
+bastion:
   create: true
-  project_name: "test-app"
+  instance_type: "t2.micro"
+  username: "eksadmin"
+  password: "YourSecurePassword123!"
+  existing_role_arn: ""
+
+  # Restrict SSH access to your VPN or Specific IPs
+  ingress_rules:
+    - description: "SSH from Corporate VPN"
+      from_port: 22
+      to_port: 22
+      protocol: "tcp"
+      cidr_blocks:
+        - "0.0.0.0/0"
+        # - "10.200.0.0/16"     # Example Corporate VPN CIDR
+        # - "198.51.100.45/32"  # Example Specific Static Public IP
+
+  egress_rules:
+    - description: "Allow all outbound traffic"
+      from_port: 0
+      to_port: 0
+      protocol: "-1"
+      cidr_blocks:
+        - "0.0.0.0/0"
+
+# if already exist use the below code
+# bastion:
+#   create: false
+#   instance_type: ""
+#   username: ""
+#   password: ""
+#   existing_role_arn: "arn:aws:iam::680736395115:role/your-existing-bastion-role"
+

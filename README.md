@@ -8,7 +8,7 @@ The deployment workflow runs these components in order:
 
 1. **Bootstrap**: an S3 bucket for Terraform state and a KMS key. DynamoDB locking is supported by the module but disabled by default; the generated backend uses S3 lockfiles.
 2. **VPC**: a VPC with three public and three private subnets across `ap-south-1a`, `ap-south-1b`, and `ap-south-1c`, plus NAT gateways when enabled in configuration.
-3. **Bastion**: currently creates only a security group from the configured ingress/egress rules. The EC2 instance and Terragrunt wiring are not yet implemented.
+3. **Bastion**: an Amazon Linux 2023 EC2 host in the first public VPC subnet, with a configurable security group and an SSM-capable IAM instance profile.
 4. **EKS**: an EKS cluster with managed `core_nodes` and `app_nodes` node groups, control-plane logging, and AWS-managed CoreDNS, kube-proxy, and VPC CNI add-ons.
 
 The included Helm chart is a sample NGINX workload with an ALB ingress and EFS persistent volume claim. It requires an existing EFS filesystem plus the AWS Load Balancer Controller and EFS CSI driver; those dependencies are not provisioned by this repository.
@@ -20,7 +20,7 @@ The included Helm chart is a sample NGINX workload with an ALB ingress and EFS p
 02-modules/
   01-bootstrap/                       # S3, KMS, optional DynamoDB lock table
   02-vpc/                             # terraform-aws-modules/vpc/aws wrapper
-  03-bastion/                         # Bastion security-group work in progress
+  03-bastion/                         # Bastion EC2 host, security group, and IAM profile
   04-eks/                             # terraform-aws-modules/eks/aws wrapper
 03-live/
   root.hcl                            # Generated AWS provider and S3 backend
@@ -64,7 +64,7 @@ Edit `12-platform-config/clients/client-a/dev.yaml` before deployment. In partic
 - VPC CIDRs and availability zones appropriate for the region.
 - EKS node group sizing and instance types.
 - A globally unique `bootstrap.bucket_name`.
-- Bastion ingress rules restricted to trusted CIDRs. Do not keep the example password in source control; it is not currently used because the bastion EC2 instance is not implemented.
+- Bastion ingress rules restricted to trusted CIDRs. Set `bastion.password` to `null` to use SSM Session Manager without creating a password-authenticated user.
 
 The state bucket name must be unique across all AWS accounts. Bootstrap state is initially local, so retain that local state securely after creation.
 
@@ -84,8 +84,6 @@ The intended sequence is:
 bootstrap → 02-vpc → 03-bastion → 04-eks → kubeconfig
 ```
 
-> **Current limitation:** `03-bastion` is included in the script but is incomplete, so the deployment will fail when it reaches that stage. Until it is implemented, deploy bootstrap, VPC, and EKS manually as shown below, or remove `03-bastion` from the script's `COMPONENTS` array.
-
 ### How `deploy-env.sh` works
 
 `scripts/deploy-env.sh` is an interactive wrapper around Terragrunt. Its first two positional arguments are the client name and environment:
@@ -100,7 +98,7 @@ For `./scripts/deploy-env.sh client-a dev`, it sets its working paths to the fol
 | --- | --- | --- |
 | Bootstrap | `01-bootstrap/clients/client-a/dev` | Creates the state bucket and KMS key. |
 | VPC | `03-live/clients/client-a/dev/02-vpc` | Creates or adopts the configured VPC. |
-| Bastion | `03-live/clients/client-a/dev/03-bastion` | Runs only when that directory exists. Currently incomplete. |
+| Bastion | `03-live/clients/client-a/dev/03-bastion` | Creates the bastion host in the VPC's first public subnet. |
 | EKS | `03-live/clients/client-a/dev/04-eks` | Creates the EKS cluster and managed node groups. |
 
 For bootstrap and every existing live component, the script performs this sequence:
@@ -141,7 +139,18 @@ terragrunt plan
 terragrunt apply
 ```
 
-Then deploy EKS:
+Then deploy the bastion, followed by EKS:
+
+```bash
+cd ../03-bastion
+terragrunt init
+terragrunt validate
+terragrunt plan
+terragrunt apply
+```
+
+```bash
+cd ../04-eks
 
 ```bash
 cd ../04-eks
@@ -175,7 +184,7 @@ The destroy helper is interactive:
 ./scripts/destroy-env.sh client-a dev
 ```
 
-It currently destroys EKS, then VPC, then bootstrap. Do **not** use it after creating bastion resources: it does not include `03-bastion`, and the remaining security group can prevent VPC deletion. Remove bastion resources first or update the destroy order to run bastion before VPC. Destroying bootstrap deletes the Terraform state bucket and KMS key; use this only when permanently removing the environment.
+It destroys EKS, then bastion, then VPC, then bootstrap. Destroying bootstrap deletes the Terraform state bucket and KMS key; use this only when permanently removing the environment.
 
 ## Security and operational notes
 
@@ -193,4 +202,4 @@ It currently destroys EKS, then VPC, then bootstrap. Do **not** use it after cre
 
 ## Status
 
-The VPC and EKS stacks are the implemented infrastructure path. Bastion support, VPC flow logs/endpoints, private EKS endpoint access, subnet discovery tags, IAM/IRSA configuration, and the Helm chart's AWS dependencies are future work needed for a production-ready platform.
+The VPC, bastion, and EKS stacks are implemented. VPC flow logs/endpoints, private EKS endpoint access, subnet discovery tags, IAM/IRSA configuration, and the Helm chart's AWS dependencies are future work needed for a production-ready platform.
