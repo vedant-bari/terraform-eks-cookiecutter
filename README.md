@@ -11,6 +11,7 @@ The deployment workflow runs these components in order:
 3. **Bastion**: an Amazon Linux 2023 EC2 host in the first public VPC subnet, with a configurable security group and an SSM-capable IAM instance profile.
 4. **EKS**: an EKS cluster with managed `core_nodes` and `app_nodes` node groups, control-plane logging, and AWS-managed CoreDNS, kube-proxy, and VPC CNI add-ons.
 5. **EBS CSI**: the AWS EBS CSI managed add-on, its IRSA role, and an `ebs-gp3` StorageClass for dynamically provisioned encrypted gp3 volumes.
+6. **EFS CSI**: an encrypted EFS file system with private-subnet mount targets when configured to create one, or an existing EFS file system when configured to adopt one, plus an `efs-sc` RWX StorageClass.
 
 The included Helm chart is a sample NGINX workload with an ALB ingress and EFS persistent volume claim. It requires an existing EFS filesystem plus the AWS Load Balancer Controller and EFS CSI driver; those dependencies are not provisioned by this repository.
 
@@ -24,9 +25,10 @@ The included Helm chart is a sample NGINX workload with an ALB ingress and EFS p
   03-bastion/                         # Bastion EC2 host, security group, and IAM profile
   04-eks/                             # terraform-aws-modules/eks/aws wrapper
   05-ebs-csi/                         # EBS CSI add-on, IRSA role, and gp3 StorageClass
+  06-efs-csi/                         # EFS CSI add-on, IRSA role, EFS, and RWX StorageClass
 03-live/
   root.hcl                            # Generated AWS provider and S3 backend
-  clients/client-a/dev/               # VPC, bastion, EKS, and EBS CSI Terragrunt stacks
+  clients/client-a/dev/               # VPC, bastion, EKS, EBS CSI, and EFS CSI Terragrunt stacks
 12-platform-config/clients/client-a/
   dev.yaml                            # Environment-specific settings
 13-kubernetes-apps/test-app/          # Sample Helm chart
@@ -83,7 +85,7 @@ For each stage, the script runs `terragrunt init`, `validate`, and `plan`, then 
 The intended sequence is:
 
 ```text
-bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → kubeconfig
+bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → 06-efs-csi → kubeconfig
 ```
 
 ### How `deploy-env.sh` works
@@ -103,6 +105,7 @@ For `./scripts/deploy-env.sh client-a dev`, it sets its working paths to the fol
 | Bastion | `03-live/clients/client-a/dev/03-bastion` | Creates the bastion host in the VPC's first public subnet. |
 | EKS | `03-live/clients/client-a/dev/04-eks` | Creates the EKS cluster and managed node groups. |
 | EBS CSI | `03-live/clients/client-a/dev/05-ebs-csi` | Installs the EBS CSI add-on and creates the configured gp3 StorageClass. |
+| EFS CSI | `03-live/clients/client-a/dev/06-efs-csi` | Creates or adopts EFS, then installs the EFS CSI add-on and creates the configured RWX StorageClass. |
 
 For bootstrap and every existing live component, the script performs this sequence:
 
@@ -173,6 +176,16 @@ terragrunt plan
 terragrunt apply
 ```
 
+Then deploy EFS storage:
+
+```bash
+cd ../06-efs-csi
+terragrunt init
+terragrunt validate
+terragrunt plan
+terragrunt apply
+```
+
 Configure `kubectl` after EKS is ready:
 
 ```bash
@@ -199,6 +212,17 @@ kubectl get pvc app-data
 EBS volumes support `ReadWriteOnce`, so use one PVC per replica for workloads that run on multiple nodes. `WaitForFirstConsumer` delays volume creation until the pod is scheduled, ensuring the volume is created in that pod's Availability Zone. Set `ebs.reclaim_policy` to `Retain` in the environment YAML when deleting a claim must preserve its EBS volume.
 
 To use a volume that already exists, set `ebs.create: false` and provide its `ebs.existing_id` (for example, `vol-0123456789abcdef0`). The component discovers the volume's size and Availability Zone, then creates a static PV and an `existing-ebs-pvc` claim in the configured namespace. The volume is retained if the Terragrunt component is destroyed.
+
+## Use EFS persistent storage
+
+The `efs-sc` StorageClass dynamically creates an EFS access point for each claim and supports `ReadWriteMany`. Apply the included example:
+
+```bash
+kubectl apply -f 13-kubernetes-apps/efs-pvc-example.yaml
+kubectl get pvc shared-app-data
+```
+
+For a new EFS file system, set `efs.create: true`; mount targets and their NFS security group are created in every private subnet. To adopt an existing file system, set `efs.create: false` and `efs.existing_id` to its `fs-...` ID. Existing EFS mount targets must already be reachable from the EKS node security group over TCP port 2049.
 
 ## Deploy the sample Helm chart
 

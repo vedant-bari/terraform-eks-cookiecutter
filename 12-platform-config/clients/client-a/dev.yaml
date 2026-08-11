@@ -100,6 +100,16 @@ ebs:
   # Use Retain when PVC deletion must not delete the underlying EBS volume.
   reclaim_policy: "Delete"
 
+efs:
+  # Create a new EFS file system, or use one that already exists.
+  create: true
+  existing_id: ""
+  storage_class_name: "efs-sc"
+  access_point_base_path: "/dynamic_provisioning"
+  transition_to_ia: "AFTER_30_DAYS"
+  addon_version: null
+  reclaim_policy: "Delete"
+
 
 bastion:
   create: true
