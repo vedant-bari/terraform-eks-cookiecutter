@@ -86,6 +86,20 @@ eks:
     Environment: "dev"
     Client: "client-a"
 
+ebs:
+  # Create dynamically provisioned EBS volumes, or bind a pre-existing volume.
+  create: true
+  storage_class_name: "ebs-gp3"
+  existing_id: ""
+  existing_pv_name: "existing-ebs-pv"
+  existing_pvc_name: "existing-ebs-pvc"
+  existing_pvc_namespace: "default"
+  existing_fs_type: "ext4"
+  # Leave null to use the EKS-compatible default add-on version.
+  addon_version: null
+  # Use Retain when PVC deletion must not delete the underlying EBS volume.
+  reclaim_policy: "Delete"
+
 
 bastion:
   create: true
@@ -120,4 +134,3 @@ bastion:
 #   username: ""
 #   password: ""
 #   existing_role_arn: "arn:aws:iam::680736395115:role/your-existing-bastion-role"
-
