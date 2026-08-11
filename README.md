@@ -26,6 +26,7 @@ The included Helm chart is a sample NGINX workload with an ALB ingress and EFS p
   04-eks/                             # terraform-aws-modules/eks/aws wrapper
   05-ebs-csi/                         # EBS CSI add-on, IRSA role, and gp3 StorageClass
   06-efs-csi/                         # EFS CSI add-on, IRSA role, EFS, and RWX StorageClass
+  07-monitoring/                      # kube-prometheus-stack Helm release
 03-live/
   root.hcl                            # Generated AWS provider and S3 backend
   clients/client-a/dev/               # VPC, bastion, EKS, EBS CSI, and EFS CSI Terragrunt stacks
@@ -85,7 +86,7 @@ For each stage, the script runs `terragrunt init`, `validate`, and `plan`, then 
 The intended sequence is:
 
 ```text
-bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → 06-efs-csi → kubeconfig
+bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → 06-efs-csi → 07-monitoring → kubeconfig
 ```
 
 ### How `deploy-env.sh` works
@@ -106,6 +107,7 @@ For `./scripts/deploy-env.sh client-a dev`, it sets its working paths to the fol
 | EKS | `03-live/clients/client-a/dev/04-eks` | Creates the EKS cluster and managed node groups. |
 | EBS CSI | `03-live/clients/client-a/dev/05-ebs-csi` | Installs the EBS CSI add-on and creates the configured gp3 StorageClass. |
 | EFS CSI | `03-live/clients/client-a/dev/06-efs-csi` | Creates or adopts EFS, then installs the EFS CSI add-on and creates the configured RWX StorageClass. |
+| Monitoring | `03-live/clients/client-a/dev/07-monitoring` | Installs the Prometheus, Grafana, and Alertmanager Helm release after EBS storage is available. |
 
 For bootstrap and every existing live component, the script performs this sequence:
 
@@ -186,6 +188,16 @@ terragrunt plan
 terragrunt apply
 ```
 
+Then deploy the monitoring Helm release through Terraform:
+
+```bash
+cd ../07-monitoring
+terragrunt init
+terragrunt validate
+terragrunt plan
+terragrunt apply
+```
+
 Configure `kubectl` after EKS is ready:
 
 ```bash
@@ -232,6 +244,23 @@ After installing the required controllers and setting a real EFS file-system ID 
 helm upgrade --install eks-test-app ./13-kubernetes-apps/test-app
 kubectl get pods,svc,ingress,pv,pvc
 ```
+
+## Deploy monitoring
+
+The `07-monitoring` Terragrunt component manages the pinned `prometheus-community/kube-prometheus-stack` Helm release in the `monitoring` namespace. It depends on `05-ebs-csi` and configures Prometheus, Grafana, and Alertmanager with EBS-backed claims.
+
+```bash
+./scripts/deploy-env.sh client-a dev
+```
+
+Grafana receives the chart's built-in Kubernetes dashboards, including cluster, node, namespace, and pod CPU/memory, network, and resource views. To access Grafana locally:
+
+```bash
+kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
+kubectl -n monitoring get secret monitoring-grafana -o jsonpath='{.data.admin-password}' | base64 --decode; echo
+```
+
+Use `admin` as the Grafana user. Configure Alertmanager receivers (for email, Slack, PagerDuty, or another destination) in `02-modules/07-monitoring/override.yaml.tftpl` before relying on notifications.
 
 ## Destroy
 

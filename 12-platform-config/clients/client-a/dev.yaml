@@ -110,6 +110,10 @@ efs:
   addon_version: null
   reclaim_policy: "Delete"
 
+monitoring:
+  namespace: "monitoring"
+  chart_version: "86.0.0"
+
 
 bastion:
   create: true

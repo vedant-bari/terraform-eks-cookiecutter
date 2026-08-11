@@ -13,7 +13,7 @@ ENV=$2
 BASE_DIR=$(pwd)
 
 # Define the exact order of destruction (MUST BE REVERSED)
-COMPONENTS=("06-efs-csi" "05-ebs-csi" "04-eks" "03-bastion" "02-vpc")
+COMPONENTS=("07-monitoring" "06-efs-csi" "05-ebs-csi" "04-eks" "03-bastion" "02-vpc")
 
 echo "⚠️  WARNING: Starting Granular Infrastructure DESTRUCTION for $CLIENT ($ENV)..."
 
