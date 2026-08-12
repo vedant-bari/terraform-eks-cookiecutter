@@ -36,19 +36,11 @@ rm -rf aws awscliv2.zip
 echo ""
 echo "Installing Terraform..."
 
-wget -qO- https://apt.releases.hashicorp.com/gpg \
-    | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
-
-echo \
-"deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-https://apt.releases.hashicorp.com \
-$(lsb_release -cs) main" \
-| sudo tee /etc/apt/sources.list.d/hashicorp.list
-
-sudo apt-get update
-
-sudo apt-get install -y terraform
+TF_VERSION="1.15.8" # The latest stable version as of July 8, 2026
+curl -sL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o terraform.zip
+unzip -o terraform.zip
+sudo install -o root -g root -m 0755 terraform /usr/local/bin/terraform
+rm terraform.zip terraform
 
 echo ""
 echo "Installing Terragrunt..."
