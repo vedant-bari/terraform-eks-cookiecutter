@@ -3,8 +3,8 @@ set -e
 
 # Check if required arguments are provided
 if [ -z "$1" ] || [ -z "$2" ] || [ -z "$3" ]; then
-  echo "❌ Usage: ./scripts/deploy-app.sh <client-name> <environment> <app-name>"
-  echo "   Example: ./scripts/deploy-app.sh client-a dev orders-api"
+  echo "❌ Usage: ./scripts/destroy-app.sh <client-name> <environment> <app-name>"
+  echo "   Example: ./scripts/destroy-app.sh client-a dev orders-api"
   exit 1
 fi
 
@@ -16,7 +16,7 @@ APP_DIR="$BASE_DIR/13-kubernetes-apps/$CLIENT/$APP_NAME"
 PLATFORM_CONFIG_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/$ENV.yaml"
 APP_VALUES_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/applications/${APP_NAME}.${ENV}.yaml"
 
-echo "🚀 Starting Application Deployment for $APP_NAME ($CLIENT / $ENV)..."
+echo "🚀 Starting Application DESTRUCTION for $APP_NAME ($CLIENT / $ENV)..."
 
 # ==========================================
 # PHASE 1: PREREQUISITE CHECKS
@@ -79,10 +79,10 @@ kubectl cluster-info > /dev/null
 echo "✅ Successfully connected to the cluster."
 
 # ==========================================
-# PHASE 3: DEPLOY APPLICATION
+# PHASE 3: DESTROY APPLICATION
 # ==========================================
 echo "======================================================="
-echo "📦 PHASE 3: Deploying $APP_NAME with Kustomize"
+echo "🧨 PHASE 3: Destroying $APP_NAME with Kustomize"
 echo "======================================================="
 cd "$APP_DIR"
 
@@ -92,30 +92,38 @@ if [ ! -f "kustomization.template.yaml" ]; then
   exit 1
 fi
 
-# Read the namespace from the application's values.yaml file
-NAMESPACE=$(yq e '.namespace' "$APP_VALUES_FILE")
-
-if [ -z "$NAMESPACE" ] || [ "$NAMESPACE" == "null" ]; then
-  echo "❌ 'namespace' not found or is empty in values.yaml for application '$APP_NAME'."
-  exit 1
-fi
-
 # Dynamically generate kustomization.yaml from template
 echo "Generating kustomization.yaml from template..."
 export APP_NAME
-# Calculate the relative path from the app overlay dir to the values file
 export VALUES_FILE
 VALUES_FILE=$(realpath --relative-to="$APP_DIR" "$APP_VALUES_FILE")
 envsubst < kustomization.template.yaml > kustomization.yaml
 
-echo "Ensuring namespace '$NAMESPACE' exists..."
-kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+NAMESPACE=$(yq e '.namespace' "$APP_VALUES_FILE")
 
-echo "Building and applying Kubernetes manifests..."
-kustomize build . | kubectl apply -n "$NAMESPACE" -f -
+# Check if namespace exists before attempting deletion
+if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "✅ Namespace '$NAMESPACE' does not exist. Nothing to destroy."
+  rm kustomization.yaml
+  exit 0
+fi
 
-# Clean up the generated file
+echo ""
+read -p "🛑 Are you sure you want to DESTROY the '$APP_NAME' application in namespace '$NAMESPACE'? This is irreversible. (y/n): " confirm_destroy
+if [[ "$confirm_destroy" != "y" && "$confirm_destroy" != "Y" ]]; then
+  echo "❌ Destruction stopped by user."
+  rm kustomization.yaml
+  exit 1
+fi
+
+echo "Building and deleting Kubernetes manifests..."
+# Use -n to target the correct namespace and --ignore-not-found to prevent errors if a resource is already gone.
+kustomize build . | kubectl delete -n "$NAMESPACE" --ignore-not-found=true -f -
+
 rm kustomization.yaml
 
-echo "✅ Application deployment for '$APP_NAME' initiated successfully!"
-echo "   Run 'kubectl get pods -n $NAMESPACE' to check the status."
+# You could optionally add a step here to delete the namespace itself after all resources are gone.
+# echo "Deleting namespace '$NAMESPACE'..."
+# kubectl delete namespace "$NAMESPACE"
+
+echo "✅ Application destruction for '$APP_NAME' initiated successfully!"

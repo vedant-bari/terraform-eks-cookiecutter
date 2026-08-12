@@ -1,0 +1,37 @@
+# Application-specific values for the 'orders-api' in the 'dev' environment.
+
+# -- The namespace where the application will be deployed.
+namespace: "orders-api-dev"
+
+# -- Image for the orders-api
+image:
+  repository: "123456789012.dkr.ecr.ap-south-1.amazonaws.com/orders-api"
+  tag: "v1.2.3" # Use an immutable tag
+
+# -- Service Account annotations for IAM Roles for Service Accounts (IRSA)
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/EKS-OrdersAPI-Role-Dev"
+
+# -- Ingress configuration for this specific service
+ingress:
+  enabled: true
+  hosts:
+    - host: "orders-api.dev.client-a.com"
+      paths:
+        - path: /
+          pathType: Prefix
+
+# -- Configuration for fetching secrets from AWS Secrets Manager
+externalSecret:
+  enabled: true
+  # This should match the name of a ClusterSecretStore or a SecretStore in the app's namespace
+  secretStoreRef:
+    name: "aws-secretsmanager"
+    kind: "ClusterSecretStore"
+  remoteRef: "/client-a/dev/orders-api"
+
+# -- Application-specific resource requirements
+resources:
+  requests: { cpu: 200m, memory: 256Mi }
+  limits: { cpu: 1000m, memory: 1024Mi }

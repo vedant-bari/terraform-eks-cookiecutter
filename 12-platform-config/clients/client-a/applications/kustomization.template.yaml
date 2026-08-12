@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# This helmCharts block renders the generic chart with application-specific values.
+helmCharts:
+  - name: generic-app-chart
+    # Path to the generic chart
+    repo: "file://../../../generic-app-chart"
+    # These values will be substituted by the deploy-app.sh script
+    releaseName: ${APP_NAME}
+    valuesFile: ${VALUES_FILE} # This will point to the file in 12-platform-config
