@@ -19,3 +19,8 @@ variable "storage_class_name" {
   description = "StorageClass used by Grafana, Prometheus, and Alertmanager persistent volume claims."
   type        = string
 }
+
+variable "monitoring_values" {
+  description = "kube-prometheus-stack Helm values loaded from the shared client monitoring-and-logging override file."
+  type        = string
+}

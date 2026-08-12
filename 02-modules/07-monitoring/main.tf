@@ -26,7 +26,5 @@ resource "helm_release" "monitoring" {
   atomic           = true
   cleanup_on_fail  = true
 
-  values = [templatefile("${path.module}/override.yaml.tftpl", {
-    storage_class_name = var.storage_class_name
-  })]
+  values = [replace(var.monitoring_values, "__STORAGE_CLASS_NAME__", var.storage_class_name)]
 }

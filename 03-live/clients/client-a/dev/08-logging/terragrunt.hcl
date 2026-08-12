@@ -24,8 +24,10 @@ dependency "monitoring" {
 }
 
 locals {
-  # Paths in logging.override_values_files are relative to 12-platform-config.
-  platform_config_dir = "${get_parent_terragrunt_dir()}/../12-platform-config"
+  # This shared override contains separate monitoring, loki, and alloy sections.
+  # Its path is relative to 12-platform-config.
+  platform_config_dir  = "${get_parent_terragrunt_dir()}/../12-platform-config"
+  observability_values = yamldecode(file("${local.platform_config_dir}/${include.root.locals.config.logging.override_values_file}"))
 }
 
 inputs = {
@@ -33,6 +35,6 @@ inputs = {
   namespace           = dependency.monitoring.outputs.namespace
   loki_chart_version  = include.root.locals.config.logging.loki_chart_version
   alloy_chart_version = include.root.locals.config.logging.alloy_chart_version
-  loki_values         = file("${local.platform_config_dir}/${include.root.locals.config.logging.override_values_files.loki}")
-  alloy_values        = file("${local.platform_config_dir}/${include.root.locals.config.logging.override_values_files.alloy}")
+  loki_values         = yamlencode(local.observability_values.loki)
+  alloy_values        = yamlencode(local.observability_values.alloy)
 }

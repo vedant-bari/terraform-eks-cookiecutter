@@ -27,6 +27,7 @@ The included Helm chart is a sample NGINX workload with an ALB ingress and EFS p
   05-ebs-csi/                         # EBS CSI add-on, IRSA role, and gp3 StorageClass
   06-efs-csi/                         # EFS CSI add-on, IRSA role, EFS, and RWX StorageClass
   07-monitoring/                      # kube-prometheus-stack Helm release
+  08-logging/                         # Loki, Alloy log collection, and Grafana log integration
 03-live/
   root.hcl                            # Generated AWS provider and S3 backend
   clients/client-a/dev/               # VPC, bastion, EKS, EBS CSI, and EFS CSI Terragrunt stacks
@@ -86,7 +87,7 @@ For each stage, the script runs `terragrunt init`, `validate`, and `plan`, then 
 The intended sequence is:
 
 ```text
-bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → 06-efs-csi → 07-monitoring → kubeconfig
+bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → 06-efs-csi → 07-monitoring → 08-logging → kubeconfig
 ```
 
 ### How `deploy-env.sh` works
@@ -108,6 +109,7 @@ For `./scripts/deploy-env.sh client-a dev`, it sets its working paths to the fol
 | EBS CSI | `03-live/clients/client-a/dev/05-ebs-csi` | Installs the EBS CSI add-on and creates the configured gp3 StorageClass. |
 | EFS CSI | `03-live/clients/client-a/dev/06-efs-csi` | Creates or adopts EFS, then installs the EFS CSI add-on and creates the configured RWX StorageClass. |
 | Monitoring | `03-live/clients/client-a/dev/07-monitoring` | Installs the Prometheus, Grafana, and Alertmanager Helm release after EBS storage is available. |
+| Logging | `03-live/clients/client-a/dev/08-logging` | Installs Loki and Grafana Alloy in the existing monitoring namespace, then provisions the Loki datasource and Kubernetes Logs dashboard in Grafana. |
 
 For bootstrap and every existing live component, the script performs this sequence:
 
@@ -198,6 +200,16 @@ terragrunt plan
 terragrunt apply
 ```
 
+Then deploy logging:
+
+```bash
+cd ../08-logging
+terragrunt init
+terragrunt validate
+terragrunt plan
+terragrunt apply
+```
+
 Configure `kubectl` after EKS is ready:
 
 ```bash
@@ -260,7 +272,23 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 kubectl -n monitoring get secret monitoring-grafana -o jsonpath='{.data.admin-password}' | base64 --decode; echo
 ```
 
-Use `admin` as the Grafana user. Configure Alertmanager receivers (for email, Slack, PagerDuty, or another destination) in `02-modules/07-monitoring/override.yaml.tftpl` before relying on notifications.
+Use `admin` as the Grafana user. Configure Alertmanager receivers (for email, Slack, PagerDuty, or another destination) in the `monitoring` section of the client override file before relying on notifications.
+
+## Deploy logging
+
+The `08-logging` Terragrunt component deploys Loki and Grafana Alloy into the existing `monitoring` namespace. Alloy collects pod logs from all namespaces and Kubernetes events through the Kubernetes API and sends them to Loki. The Grafana sidecars installed by `07-monitoring` automatically discover the managed Loki datasource and **Kubernetes Logs** dashboard.
+
+Monitoring, Loki, and Alloy values share one client-owned override file. Its path is explicitly configured in the environment YAML:
+
+```yaml
+monitoring:
+  override_values_file: "clients/client-a/monitoring-and-logging/override.yaml"
+
+logging:
+  override_values_file: "clients/client-a/monitoring-and-logging/override.yaml"
+```
+
+For `client-a`, edit [the shared override](/home/vedant-bari/workspace/nuclesteq/terraform-eks-cookiecutter/12-platform-config/clients/client-a/monitoring-and-logging/override.yaml). The modules select their respective `monitoring`, `loki`, or `alloy` section before passing it to Helm. The committed Loki configuration is a persistent single-replica filesystem deployment for development; use an S3-backed distributed configuration before relying on it for highly available production log retention.
 
 ## Destroy
 

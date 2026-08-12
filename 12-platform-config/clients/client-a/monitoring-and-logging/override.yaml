@@ -1,0 +1,203 @@
+# Shared observability Helm values for client-a. Each top-level section is passed
+# only to its corresponding Helm chart by the monitoring and logging modules.
+monitoring:
+  fullnameOverride: monitoring
+  defaultRules:
+    create: true
+  grafana:
+    enabled: true
+    defaultDashboardsEnabled: true
+    defaultDashboardsEditable: true
+    defaultDashboardsTimezone: browser
+    persistence:
+      enabled: true
+      storageClassName: "__STORAGE_CLASS_NAME__"
+      accessModes:
+        - ReadWriteOnce
+      size: 5Gi
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+      datasources:
+        enabled: true
+        searchNamespace: ALL
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      retention: 15d
+      retentionSize: 18GB
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: "__STORAGE_CLASS_NAME__"
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+  alertmanager:
+    enabled: true
+    alertmanagerSpec:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: "__STORAGE_CLASS_NAME__"
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+  kube-state-metrics:
+    enabled: true
+  prometheus-node-exporter:
+    enabled: true
+  kubelet:
+    enabled: true
+    serviceMonitor:
+      cAdvisor: true
+      probes: true
+
+loki:
+  deploymentMode: SingleBinary
+  loki:
+    auth_enabled: false
+    storage:
+      type: filesystem
+      # The chart requires names even though filesystem storage does not create buckets.
+      bucketNames:
+        chunks: loki-chunks
+        ruler: loki-ruler
+    commonConfig:
+      replication_factor: 1
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    limits_config:
+      retention_period: 168h
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+  singleBinary:
+    replicas: 1
+    persistence:
+      enabled: true
+      storageClass: ebs-gp3
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+
+alloy:
+  fullnameOverride: alloy-logs
+  controller:
+    type: deployment
+    replicas: 1
+  rbac:
+    create: true
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "pods/log", "namespaces", "events"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["events.k8s.io"]
+        resources: ["events"]
+        verbs: ["get", "list", "watch"]
+  alloy:
+    configMap:
+      content: |-
+        logging {
+          level  = "info"
+          format = "logfmt"
+        }
+
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "pod_logs" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label  = "node"
+          }
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.source.kubernetes_events "events" {
+          job_name   = "kubernetes/events"
+          log_format = "logfmt"
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.write "default" {
+          endpoint {
+            url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+          }
+        }
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
