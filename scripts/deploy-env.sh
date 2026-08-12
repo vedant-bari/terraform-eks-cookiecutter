@@ -13,7 +13,7 @@ ENV=$2
 BASE_DIR=$(pwd)
 
 # Define the exact order of creation
-COMPONENTS=("02-vpc" "03-bastion" "04-eks" "05-ebs-csi" "06-efs-csi" "07-monitoring")
+COMPONENTS=("02-vpc" "03-bastion" "04-eks" "05-ebs-csi" "06-efs-csi" "07-monitoring" "08-logging")
 
 echo "🚀 Starting Granular Infrastructure Deployment for $CLIENT ($ENV)..."
 

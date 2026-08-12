@@ -114,6 +114,14 @@ monitoring:
   namespace: "monitoring"
   chart_version: "86.0.0"
 
+logging:
+  # Values files are relative to 12-platform-config and may be replaced per client.
+  override_values_files:
+    loki: "clients/client-a/logging/loki-override.yaml"
+    alloy: "clients/client-a/logging/alloy-override.yaml"
+  loki_chart_version: "6.34.0"
+  alloy_chart_version: "1.11.0"
+
 
 bastion:
   create: true
