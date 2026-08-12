@@ -1,0 +1,19 @@
+{{- if and .Values.storage.efs.enabled .Values.storage.efs.createPersistentVolume }}
+{{- if not .Values.storage.efs.fileSystemId }}{{- fail "storage.efs.fileSystemId is required for a static EFS PV" }}{{- end }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "eks-generic-app.fullname" . }}-efs
+  labels:
+    {{- include "eks-generic-app.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.storage.efs.capacity }}
+  volumeMode: Filesystem
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: {{ .Values.storage.efs.reclaimPolicy }}
+  storageClassName: {{ .Values.storage.efs.storageClassName }}
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ .Values.storage.efs.fileSystemId }}{{- with .Values.storage.efs.accessPointId }}::{{ . }}{{- end }}
+{{- end }}

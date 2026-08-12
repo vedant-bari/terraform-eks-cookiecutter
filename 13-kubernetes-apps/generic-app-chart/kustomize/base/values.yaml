@@ -1,0 +1,41 @@
+# Platform defaults rendered by Kustomize. Override app-specific values in an overlay.
+replicaCount: 2
+service:
+  type: ClusterIP
+  port: 80
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/success-codes: "200-399"
+probes:
+  startup:
+    enabled: true
+    httpGet: { path: /healthz, port: http }
+    failureThreshold: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+  readiness:
+    enabled: true
+    httpGet: { path: /healthz, port: http }
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    enabled: true
+    httpGet: { path: /healthz, port: http }
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: 500m, memory: 512Mi }
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

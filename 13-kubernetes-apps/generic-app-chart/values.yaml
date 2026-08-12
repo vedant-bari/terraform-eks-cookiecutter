@@ -1,0 +1,40 @@
+# Application-specific overrides for the 'nginx-test' application.
+
+# -- The namespace where the application will be deployed. **Required**.
+namespace: nginx-test-dev
+
+# -- Image for the nginx-test application.
+# Using a specific, immutable tag is a production best practice.
+image:
+  repository: "nginx"
+  tag: "1.25.3"
+
+# -- Nginx listens on port 80 by default.
+containerPort: 80
+
+# -- Ingress configuration for this specific service.
+ingress:
+  hosts:
+    - host: "nginx-test.dev.client-a.com"
+      paths:
+        - path: /
+          pathType: Prefix
+
+# -- Health check probes for nginx.
+# A standard nginx container doesn't have a /healthz endpoint, but it will
+# serve a 200 OK on the root path '/'. We adjust the probes accordingly.
+probes:
+  startup:
+    httpGet: { path: /, port: http }
+  readiness:
+    httpGet: { path: /, port: http }
+  liveness:
+    httpGet: { path: /, port: http }
+
+# -- Disable features not needed for this simple test.
+externalSecret:
+  enabled: false
+
+storage:
+  efs:
+    enabled: false

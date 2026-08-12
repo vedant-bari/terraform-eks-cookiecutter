@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Use the helmCharts feature to render the generic chart.
+helmCharts:
+  - name: eks-generic-app
+    # Path is relative to this kustomization.yaml file.
+    repo: "file://."
+    # The release name for this specific application instance.
+    releaseName: nginx-test
+    # The file containing the specific overrides for this application.
+    valuesFile: values.yaml

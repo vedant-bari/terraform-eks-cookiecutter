@@ -1,0 +1,17 @@
+{{- if .Values.storage.efs.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "eks-generic-app.fullname" . }}-efs
+  labels:
+    {{- include "eks-generic-app.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: {{ .Values.storage.efs.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.efs.capacity }}
+  {{- if .Values.storage.efs.createPersistentVolume }}
+  volumeName: {{ include "eks-generic-app.fullname" . }}-efs
+  {{- end }}
+{{- end }}
