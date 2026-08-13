@@ -11,9 +11,9 @@ fi
 CLIENT=$1
 ENV=$2
 APP_NAME=$3
-BASE_DIR=$(pwd)
+BASE_DIR="$(pwd)"
 APP_DIR="$BASE_DIR/13-kubernetes-apps/$CLIENT/$APP_NAME"
-PLATFORM_CONFIG_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/$ENV.yaml"
+PLATFORM_CONFIG_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/infra/$ENV.yaml"
 APP_VALUES_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/applications/${APP_NAME}.${ENV}.yaml"
 
 echo "🚀 Starting Application Deployment for $APP_NAME ($CLIENT / $ENV)..."
