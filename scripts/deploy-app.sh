@@ -14,6 +14,7 @@ APP_NAME=$3
 BASE_DIR="$(pwd)"
 APP_DIR="$BASE_DIR/13-kubernetes-apps/$CLIENT/$APP_NAME"
 PLATFORM_CONFIG_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/infra/$ENV.yaml"
+GENERIC_KUSTOMIZE_TEMPLATE="$BASE_DIR/13-kubernetes-apps/generic-kustomization.template.yaml"
 APP_VALUES_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/applications/${APP_NAME}.${ENV}.yaml"
 
 echo "🚀 Starting Application Deployment for $APP_NAME ($CLIENT / $ENV)..."
@@ -60,6 +61,11 @@ if [ ! -f "$APP_VALUES_FILE" ]; then
   exit 1
 fi
 
+if [ ! -f "$GENERIC_KUSTOMIZE_TEMPLATE" ]; then
+  echo "❌ Generic Kustomize template file not found at: $GENERIC_KUSTOMIZE_TEMPLATE"
+  exit 1
+fi
+
 echo "✅ Prerequisites met."
 
 # ==========================================
@@ -86,11 +92,9 @@ echo "📦 PHASE 3: Deploying $APP_NAME with Kustomize"
 echo "======================================================="
 cd "$APP_DIR"
 
-# Check for the template file
-if [ ! -f "kustomization.template.yaml" ]; then
-  echo "❌ Kustomize template file not found at: $APP_DIR/kustomization.template.yaml"
-  exit 1
-fi
+# Copy the generic template to the application directory for processing
+echo "Copying generic kustomization template to $APP_DIR/kustomization.template.yaml..."
+cp "$GENERIC_KUSTOMIZE_TEMPLATE" "$APP_DIR/kustomization.template.yaml"
 
 # Read the namespace from the application's values.yaml file
 NAMESPACE=$(yq e '.namespace' "$APP_VALUES_FILE")
@@ -115,7 +119,7 @@ echo "Building and applying Kubernetes manifests..."
 kustomize build . | kubectl apply -n "$NAMESPACE" -f -
 
 # Clean up the generated file
-rm kustomization.yaml
+rm kustomization.yaml kustomization.template.yaml
 
 echo "✅ Application deployment for '$APP_NAME' initiated successfully!"
 echo "   Run 'kubectl get pods -n $NAMESPACE' to check the status."

@@ -31,9 +31,16 @@ The included Helm chart is a sample NGINX workload with an ALB ingress and EFS p
 03-live/
   root.hcl                            # Generated AWS provider and S3 backend
   clients/client-a/dev/               # VPC, bastion, EKS, EBS CSI, and EFS CSI Terragrunt stacks
-12-platform-config/clients/client-a/
-  dev.yaml                            # Environment-specific settings
-13-kubernetes-apps/test-app/          # Sample Helm chart
+12-platform-config/clients/client-a/applications/
+  openmetadata.dev.yaml               # OpenMetadata application values for dev
+  nginx.dev.yaml                      # Nginx application values for dev
+12-platform-config/clients/client-a/infra/
+  dev.yaml                            # Environment-specific infrastructure settings
+13-kubernetes-apps/client-a/
+  openmetadata/                       # Application directory (uses generic Kustomization template)
+  nginx/                              # Application directory (uses generic Kustomization template)
+  test-app/                           # Sample Helm chart
+13-kubernetes-apps/generic-kustomization.template.yaml # Generic Kustomization template for all applications
 scripts/                              # Prerequisite, validation, deploy, and destroy helpers
 ```
 

@@ -1,0 +1,51 @@
+# Application-specific values for Nginx in the 'dev' environment.
+
+# -- The namespace where the application will be deployed.
+namespace: "nginx-dev"
+
+# -- Image for Nginx.
+#    Using a recent stable version for "latest".
+image:
+  repository: "nginx"
+  tag: "1.25.4" # A recent stable Nginx version
+
+# -- Service Account annotations for IAM Roles for Service Accounts (IRSA)
+#    Update the role ARN if Nginx needs specific AWS permissions.
+serviceAccount:
+  annotations: {} # Nginx typically doesn't need IRSA unless integrating with AWS services
+
+# -- Ingress configuration for Nginx
+ingress:
+  enabled: true
+  hosts:
+    - host: "nginx.dev.client-a.com"
+      paths:
+        - path: /
+          pathType: Prefix
+  # Example TLS configuration (requires cert-manager or similar)
+  # tls:
+  #   - secretName: nginx-tls-secret
+  #     hosts:
+  #       - nginx.dev.client-a.com
+
+# -- Configuration for fetching secrets from AWS Secrets Manager
+#    Nginx typically doesn't need external secrets unless serving dynamic content or specific configurations.
+externalSecret:
+  enabled: false
+  # secretStoreRef:
+  #   name: "aws-secretsmanager"
+  #   kind: "ClusterSecretStore"
+  # remoteRef: "/client-a/dev/nginx"
+
+# -- Application-specific resource requirements
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: 200m, memory: 256Mi }
+
+# -- Number of Nginx replicas
+replicaCount: 1
+
+# -- Service type for Nginx
+service:
+  type: ClusterIP
+  port: 80

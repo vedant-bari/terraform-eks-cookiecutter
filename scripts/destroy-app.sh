@@ -14,6 +14,7 @@ APP_NAME=$3
 BASE_DIR="$(pwd)"
 APP_DIR="$BASE_DIR/13-kubernetes-apps/$CLIENT/$APP_NAME"
 PLATFORM_CONFIG_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/infra/$ENV.yaml"
+GENERIC_KUSTOMIZE_TEMPLATE="$BASE_DIR/13-kubernetes-apps/generic-kustomization.template.yaml"
 APP_VALUES_FILE="$BASE_DIR/12-platform-config/clients/$CLIENT/applications/${APP_NAME}.${ENV}.yaml"
 
 echo "🚀 Starting Application DESTRUCTION for $APP_NAME ($CLIENT / $ENV)..."
@@ -60,6 +61,11 @@ if [ ! -f "$APP_VALUES_FILE" ]; then
   exit 1
 fi
 
+if [ ! -f "$GENERIC_KUSTOMIZE_TEMPLATE" ]; then
+  echo "❌ Generic Kustomize template file not found at: $GENERIC_KUSTOMIZE_TEMPLATE"
+  exit 1
+fi
+
 echo "✅ Prerequisites met."
 
 # ==========================================
@@ -86,11 +92,9 @@ echo "🧨 PHASE 3: Destroying $APP_NAME with Kustomize"
 echo "======================================================="
 cd "$APP_DIR"
 
-# Check for the template file
-if [ ! -f "kustomization.template.yaml" ]; then
-  echo "❌ Kustomize template file not found at: $APP_DIR/kustomization.template.yaml"
-  exit 1
-fi
+# Copy the generic template to the application directory for processing
+echo "Copying generic kustomization template to $APP_DIR/kustomization.template.yaml..."
+cp "$GENERIC_KUSTOMIZE_TEMPLATE" "$APP_DIR/kustomization.template.yaml"
 
 # Dynamically generate kustomization.yaml from template
 echo "Generating kustomization.yaml from template..."
@@ -104,7 +108,7 @@ NAMESPACE=$(yq e '.namespace' "$APP_VALUES_FILE")
 # Check if namespace exists before attempting deletion
 if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
   echo "✅ Namespace '$NAMESPACE' does not exist. Nothing to destroy."
-  rm kustomization.yaml
+  rm kustomization.yaml kustomization.template.yaml
   exit 0
 fi
 
@@ -112,7 +116,7 @@ echo ""
 read -p "🛑 Are you sure you want to DESTROY the '$APP_NAME' application in namespace '$NAMESPACE'? This is irreversible. (y/n): " confirm_destroy
 if [[ "$confirm_destroy" != "y" && "$confirm_destroy" != "Y" ]]; then
   echo "❌ Destruction stopped by user."
-  rm kustomization.yaml
+  rm kustomization.yaml kustomization.template.yaml
   exit 1
 fi
 
@@ -120,7 +124,7 @@ echo "Building and deleting Kubernetes manifests..."
 # Use -n to target the correct namespace and --ignore-not-found to prevent errors if a resource is already gone.
 kustomize build . | kubectl delete -n "$NAMESPACE" --ignore-not-found=true -f -
 
-rm kustomization.yaml
+rm kustomization.yaml kustomization.template.yaml
 
 # You could optionally add a step here to delete the namespace itself after all resources are gone.
 # echo "Deleting namespace '$NAMESPACE'..."
