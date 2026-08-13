@@ -1,0 +1,51 @@
+# Application-specific values for Node.js in the 'dev' environment.
+
+# -- The namespace where the application will be deployed.
+namespace: "nodejs-dev"
+
+# -- Image for Node.js.
+#    Using a recent stable version for "latest".
+image:
+  repository: "node"
+  tag: "20-alpine" # A recent stable Node.js version on Alpine Linux
+
+# -- Service Account annotations for IAM Roles for Service Accounts (IRSA)
+#    Update the role ARN if your Node.js app needs specific AWS permissions.
+serviceAccount:
+  annotations: {} # Node.js app typically doesn't need IRSA unless integrating with AWS services
+
+# -- Ingress configuration for Node.js application
+ingress:
+  enabled: true
+  hosts:
+    - host: "nodejs.dev.client-a.com"
+      paths:
+        - path: /
+          pathType: Prefix
+  # Example TLS configuration (requires cert-manager or similar)
+  # tls:
+  #   - secretName: nodejs-tls-secret
+  #     hosts:
+  #       - nodejs.dev.client-a.com
+
+# -- Configuration for fetching secrets from AWS Secrets Manager
+#    Enable if your Node.js app needs to fetch secrets at runtime.
+externalSecret:
+  enabled: false
+  # secretStoreRef:
+  #   name: "aws-secretsmanager"
+  #   kind: "ClusterSecretStore"
+  # remoteRef: "/client-a/dev/nodejs"
+
+# -- Application-specific resource requirements
+resources:
+  requests: { cpu: 200m, memory: 256Mi }
+  limits: { cpu: 500m, memory: 512Mi }
+
+# -- Number of Node.js application replicas
+replicaCount: 1
+
+# -- Service type for Node.js application
+service:
+  type: ClusterIP
+  port: 3000 # Common port for Node.js applications
