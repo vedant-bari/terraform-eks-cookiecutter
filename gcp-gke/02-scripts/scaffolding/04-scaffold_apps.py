@@ -54,11 +54,11 @@ def generate_apps_files(config_path):
 
     config_rel_path = f"../../../../../01-config/clients/{client_name}/{environment}/infra/{environment}.yaml"
 
-    # Generate the Applications Layer (06-apps)
+    # Generate the Applications Layer (07-applications)
     apps_content = render_template("apps.hcl.template", config_rel_path)
     write_file_if_changed(os.path.join(live_dir, "07-applications", "terragrunt.hcl"), apps_content)
 
-    # Generate the Artifact Registry Layer (05-artifact-registry)
+    # Generate the Artifact Registry Layer (03-artifact-registry)
     artifact_content = render_template("artifact-registry.hcl.template", config_rel_path)
     write_file_if_changed(os.path.join(live_dir, "03-artifact-registry", "terragrunt.hcl"), artifact_content)
 

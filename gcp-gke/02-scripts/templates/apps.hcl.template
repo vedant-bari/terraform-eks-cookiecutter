@@ -1,4 +1,4 @@
-# gcp-gke/04-live/clients/hdfc-bank/dev/06-apps/terragrunt.hcl
+# gcp-gke/04-live/clients/hdfc-bank/dev/07-applications/terragrunt.hcl
 
 include "root" {
   path   = find_in_parent_folders("root.hcl")

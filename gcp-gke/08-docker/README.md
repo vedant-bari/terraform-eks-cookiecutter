@@ -70,7 +70,7 @@ gcloud auth list
 Generate client infrastructure layouts or application configurations using the Python automation scripts:
 
 ```bash
-python3 gcp-gke/02-02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/hdfc-bank/dev/infra/dev.yaml
+python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/hdfc-bank/dev/infra/dev.yaml
 
 ```
 
