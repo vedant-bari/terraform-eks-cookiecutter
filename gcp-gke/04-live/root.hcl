@@ -37,6 +37,7 @@ locals {
     "02-gke"                = "gke"
     "03-artifact-registry" = "artifact-registry"
     "04-storage"           = "storage"
+    "05-monitoring"        = "monitoring"
     "06-jenkins"            = "jenkins"
     "07-applications"      = "applications"
   }
