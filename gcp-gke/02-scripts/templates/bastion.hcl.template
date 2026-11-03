@@ -4,11 +4,11 @@ include "root" {
 }
 
 terraform {
-  source = "${get_repo_root()}/gcp-gke/02-modules/03-bastion"
+  source = "${get_repo_root()}/gcp-gke/03-modules/03-bastion"
 }
 
 dependency "vpc" {
-  config_path = "../02-vpc"
+  config_path = "../01-network"
 
   # UPDATED MOCK OUTPUTS
   mock_outputs = {
