@@ -1,0 +1,142 @@
+apps:
+  enabled: true
+
+
+client:
+  name: "hdfc-bank"
+
+environment: "prod"
+
+releaseName: frontend-web-prod
+timeout: 1200
+
+
+namespace:
+  create: true
+  name: frontend-web-prod
+
+# serviceAccount:
+#   create: true
+# --- GCP IAM & WORKLOAD IDENTITY CONFIG ---
+gcpProject: "eks-terraform"
+googleServiceAccountName: "frontend-web-prod-gsa"
+
+serviceAccount:
+  create: true
+  name: frontend-web-prod-sa
+  annotations:
+    iam.gke.io/gcp-service-account: "frontend-web-prod-gsa@eks-terraform.iam.gserviceaccount.com"
+
+
+
+
+image:
+  repository: nginx
+  tag: "alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: true
+  port: 80
+  targetPort: 80
+  type: ClusterIP
+
+# replicaCount: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+persistence:
+  enabled: true  
+  storageClassName: "hdfc-bank-dev-rwx"
+  accessMode: ReadWriteMany
+  size: 100Gi
+  mountPath: /var/log/nginx
+
+# --- ADDED INGRESS CONFIGURATION ---
+ingress:
+  enabled: true
+  className: "gce" # Standard GKE Ingress controller class
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    # kubernetes.io/ingress.allow-http: "true"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+      # host: "frontend.local" # Replace with your domain or external IP mapping
+  tls: []
+  #  - secretName: frontend-tls
+  #    hosts:
+  #      - "frontend.local"
+# -----------------------------------
+
+configMap:
+  enabled: true
+  data:
+    APP_THEME: "dark"
+    LOG_LEVEL: "info"
+
+secret:
+  enabled: targetMemoryUtilizationPercentage
+  data:
+    API_KEY: "super-secret-key-123"
+    DB_PASSWORD: "secure-db-password"
+
+# --- GCP SECRET MANAGER INTEGRATION ---
+secretManager:
+  enabled: true
+  driver: "secrets-store-gke.csi.k8s.io"
+  secrets:
+    - secretId: "prod-db-password"
+      secretValue: "my-super-secret-password-123"
+      key: "DB_PASSWORD"
+    - secretId: "prod-api-key"
+      secretValue: "my-super-secret-api-key-456"
+      key: "API_KEY"
+    - secretId: "prod-secret-key"
+      secretValue: "my-super-secret-key-420"
+      key: "SECRET_KEY"  
+
+
+
+env:
+  - name: STATIC_ENV_VAR
+    value: "I am set directly in the deployment"
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    port: 80
+  readiness:
+    enabled: true
+    path: /
+    port: 80
+  liveness:
+    enabled: true
+    path: /
+    port: 80
+
+securityContext:
+  runAsNonRoot: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - SETUID
+      - SETGID
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

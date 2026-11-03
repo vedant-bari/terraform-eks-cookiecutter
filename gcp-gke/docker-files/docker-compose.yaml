@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  infra-runner:
+    build: .
+    container_name: gcp-infra-runner
+    volumes:
+      # Mounts your repository root to /workspace inside the container
+      - ../../.:/workspace
+      # Shares your host's GCP authentication configuration
+      - ~/.config/gcloud:/root/.config/gcloud
+    environment:
+      - USE_GKE_GCLOUD_AUTH_PLUGIN=True
+    working_dir: /workspace
+    # Keeps the container running interactively
+    stdin_open: true
+    tty: true
+    command: bash

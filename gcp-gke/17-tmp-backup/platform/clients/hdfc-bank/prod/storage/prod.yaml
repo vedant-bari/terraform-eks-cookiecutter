@@ -1,0 +1,4 @@
+storageClassName: "hdfc-bank-dev-rwx" ##<---- use the same in apps
+storageProvisioner: "filestore.csi.storage.gke.io" # <--- Added provisioner here
+tier: "standard"
+vpcNetworkName: "hdfc-bank-dev-vpc"  # Update with your actual GKE VPC network name

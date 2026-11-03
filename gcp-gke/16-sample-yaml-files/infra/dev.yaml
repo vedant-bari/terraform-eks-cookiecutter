@@ -1,0 +1,72 @@
+# ==============================================================================
+# GCP PLATFORM CONFIGURATION: CLIENT-A (DEV/R&D ENVIRONMENT)
+# ==============================================================================
+
+client:
+  name: "client-a"
+
+environment: "dev"
+
+gcp:
+  project_id: "eks-terraform"   # Replace with your actual GCP Project ID
+  region: "asia-south1"
+  zone: "asia-south1-a"
+  tags:
+    env: "dev"
+    client: "client-a"
+    managed-by: "terragrunt"
+    owner: "platform-engineering"
+
+# Dedicated Bootstrap Configuration Section
+bootstrap:
+  state_bucket_name: "testing-gcp-tf-state-client-a-dev"
+
+# Minimal VPC & Networking Configuration
+vpc:
+  create: true
+  vpc_name: "client-a-dev-vpc"
+  network_cidr: "10.100.0.0/24"          # 256 Total Private IPs
+  subnet_name: "dev-gke-subnet"
+  subnet_cidr: "10.100.0.0/24"          # 256 IPs for nodes
+  pod_range_name: "pods-range"
+  pod_range_cidr: "10.1.0.0/21"         # 2,048 IPs for pods (minimal for R&D)
+  svc_range_name: "services-range"
+  svc_range_cidr: "10.2.0.0/24"         # 256 IPs for cluster services
+
+
+# Add this section to your existing dev.yaml file
+bastion:
+  create: true
+  name: "client-a-dev-bastion"
+  machine_type: "e2-micro"      # Cost-optimized for R&D (Free-tier eligible/minimal cost)
+  disk_size_gb: 20
+
+# GKE Cluster Specifications (Cost-Optimized for R&D)
+gke:
+  cluster_name: "gke-client-a-dev"
+  cluster_version: "1.35.6-gke.1710000"
+  release_channel: "REGULAR"
+  machine_type: "e2-medium"             # Low-cost 2 vCPU / 4 GB RAM instance
+  node_count: 1                         # Single node for R&D
+  disk_size_gb: 30                      # Minimal disk size
+  enable_autoscaling: true
+  min_nodes: 1
+  max_nodes: 4
+  delete_protection: false
+  enable_filestore_csi: true
+  secretManagerEnabled: true
+  workloadIdentityEnabled: true
+  cluster_addons:
+    http_load_balancing: true
+    horizontal_pod_autoscaling: false
+    gce_csi_driver: true
+
+  
+
+# Cloud Filestore (Optional: Set create to false if not testing shared NFS)
+storage:
+  filestore:
+    create: false
+    tier: "STANDARD"
+    file_share_name: "shared_vol"
+    capacity_gb: 1024

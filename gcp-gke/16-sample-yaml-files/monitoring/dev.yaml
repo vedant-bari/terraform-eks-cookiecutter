@@ -1,0 +1,172 @@
+# Lightweight & Single-Replica R&D Observability Configuration for client-a
+monitoring:
+  fullnameOverride: monitoring
+  defaultRules:
+    create: false
+  
+  alertmanager:
+    enabled: false
+
+  kube-state-metrics:
+    enabled: false
+
+  prometheus-node-exporter:
+    enabled: true
+
+  grafana:
+    enabled: true
+    replicas: 1                # <--- Single replica for Grafana
+    defaultDashboardsEnabled: true
+    defaultDashboardsEditable: true
+    defaultDashboardsTimezone: browser
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        url: http://loki.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+    persistence:
+      enabled: true
+      storageClassName: "standard-rwo"
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+    # resources:
+    #   requests:
+    #     cpu: 50m
+    #     memory: 128Mi
+    #   limits:
+    #     cpu: 200m
+    #     memory: 256Mi
+
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      replicas: 1              # <--- Single replica for Prometheus server
+      retention: "2d"
+      retentionSize: "2GB"
+      scrapeInterval: "30s"
+      # resources:
+      #   requests:
+      #     cpu: 100m
+      #     memory: 256Mi
+      #   limits:
+      #     cpu: 500m
+      #     memory: 512Mi
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: "standard-rwo"
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+
+loki:
+  deploymentMode: SingleBinary
+  loki:
+    auth_enabled: false
+    storage:
+      type: filesystem
+      bucketNames:
+        chunks: loki-chunks
+        ruler: loki-ruler
+    commonConfig:
+      replication_factor: 1
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    limits_config:
+      retention_period: 48h
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+  singleBinary:
+    replicas: 1                # <--- Single replica for Loki storage/query backend
+    persistence:
+      enabled: true
+      storageClass: "standard-rwo"
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+    # resources:
+    #   requests:
+    #     cpu: 100m
+    #     memory: 256Mi
+    #   limits:
+    #     cpu: 500m
+    #     memory: 512Mi
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+
+alloy:
+  fullnameOverride: alloy-logs
+  controller:
+    type: deployment
+    replicas: 1                # <--- Single replica for Grafana Alloy log collector
+  rbac:
+    create: true
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "pods/log", "namespaces", "events"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["events.k8s.io"]
+        resources: ["events"]
+        verbs: ["get", "list", "watch"]
+  alloy:
+    configMap:
+      content: |-
+        logging {
+          level  = "info"
+          format = "logfmt"
+        }
+
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "pod_logs" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.write "default" {
+          endpoint {
+            url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }
+    # resources:
+    #   requests:
+    #     cpu: 50m
+    #     memory: 64Mi
+    #   limits:
+    #     cpu: 200m
+    #     memory: 256Mi

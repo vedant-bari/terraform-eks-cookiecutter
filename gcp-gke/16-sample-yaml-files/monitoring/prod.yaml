@@ -1,0 +1,272 @@
+# ============================================================
+# client-b / prod - Observability Overrides
+# ============================================================
+
+monitoring:
+  fullnameOverride: monitoring
+
+  # ----------------------------------------------------------
+  # Grafana
+  # ----------------------------------------------------------
+
+  grafana:
+
+    enabled: true
+
+    # RWO PVC -> keep a single Grafana replica
+    replicas: 1
+
+    defaultDashboardsEnabled: true
+    defaultDashboardsEditable: false
+    defaultDashboardsTimezone: browser
+
+    # for testing purpose only use secret in prod
+    adminUser: grafana-admin
+    adminPassword: "admin@password"
+    # admin:
+    #   existingSecret: grafana-admin-credentials
+    #   userKey: admin
+    #   passwordKey: admin-password
+
+    # GKE native Ingress
+    # No domain required for now.
+    ingress:
+      enabled: true
+      ingressClassName: gce
+
+      annotations:
+        kubernetes.io/ingress.class: gce
+
+      hosts:
+        - "*"
+
+      path: /
+      pathType: Prefix
+
+    # Loki datasource
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        url: http://loki.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+
+    persistence:
+      enabled: true
+      storageClassName: standard-rwo
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+
+    # resources:
+    #   requests:
+    #     cpu: 100m
+    #     memory: 256Mi
+    #   limits:
+    #     cpu: 500m
+    #     memory: 512Mi
+
+
+  # ----------------------------------------------------------
+  # Prometheus
+  # ----------------------------------------------------------
+
+  prometheus:
+    enabled: true
+
+    prometheusSpec:
+      replicas: 2
+      retention: 7d
+      retentionSize: 15GB
+      scrapeInterval: 15s
+
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: standard-rwo
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+
+
+# ============================================================
+# Loki
+# ============================================================
+
+loki:
+
+  deploymentMode: SingleBinary
+
+  loki:
+
+    auth_enabled: false
+
+    commonConfig:
+      replication_factor: 1
+
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+
+    limits_config:
+      retention_period: 168h
+
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+
+  singleBinary:
+    replicas: 1
+
+    persistence:
+      enabled: true
+      storageClass: standard-rwo
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+
+  backend:
+    replicas: 0
+
+  read:
+    replicas: 0
+
+  write:
+    replicas: 0
+
+  chunksCache:
+    enabled: false
+
+  resultsCache:
+    enabled: false
+
+
+# ============================================================
+# Grafana Alloy
+# ============================================================
+
+alloy:
+
+  fullnameOverride: alloy-logs
+
+  controller:
+    type: daemonset
+
+  rbac:
+    create: true
+
+  alloy:
+
+    configMap:
+      content: |-
+
+        logging {
+          level  = "info"
+          format = "logfmt"
+        }
+
+        // ======================================================
+        // Kubernetes Pod Discovery
+        // ======================================================
+
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        // ======================================================
+        // Kubernetes metadata -> Loki labels
+        // ======================================================
+
+        discovery.relabel "pod_logs" {
+
+          targets = discovery.kubernetes.pods.targets
+
+          // Namespace
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+
+          // Pod
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+
+          // Container
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+
+          // Workload kind
+          rule {
+            source_labels = ["__meta_kubernetes_pod_controller_kind"]
+            target_label = "workload_kind"
+          }
+
+          // Immediate controller
+          rule {
+            source_labels = ["__meta_kubernetes_pod_controller_name"]
+            target_label = "workload"
+          }
+
+          // Stable application name
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label = "app"
+          }
+
+          // Application component
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+            target_label = "component"
+          }
+
+          // Application instance
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
+            target_label = "instance"
+          }
+
+          // Kubernetes node
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+        }
+
+        // ======================================================
+        // Pod logs
+        // ======================================================
+
+        loki.source.kubernetes "pods" {
+          targets = discovery.relabel.pod_logs.output
+          forward_to = [loki.write.default.receiver]
+        }
+
+        // ======================================================
+        // Kubernetes events
+        // ======================================================
+
+        loki.source.kubernetes_events "cluster_events" {
+          forward_to = [loki.write.default.receiver]
+        }
+
+        // ======================================================
+        // Loki
+        // ======================================================
+
+        loki.write "default" {
+          endpoint {
+            url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }

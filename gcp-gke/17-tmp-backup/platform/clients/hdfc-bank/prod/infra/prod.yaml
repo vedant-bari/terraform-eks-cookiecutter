@@ -1,0 +1,99 @@
+# ==============================================================================
+# GCP PLATFORM CONFIGURATION: hdfc-bank (PRODUCTION ENVIRONMENT)
+# ==============================================================================
+
+client:
+  name: "hdfc-bank"
+
+environment: "prod"
+
+gcp:
+  project_id: "eks-terraform"  # REPLACE with your actual Production GCP Project ID
+  region: "asia-south1"
+  zone: "asia-south1-a"
+  tags:
+    env: "prod"
+    client: "hdfc-bank"
+    managed-by: "terragrunt"
+    owner: "platform-engineering"
+
+# Dedicated Bootstrap Configuration
+bootstrap:
+  state_bucket_name: "gcp-tf-state-hdfc-bank-prod"
+  force_destroy: false
+  uniform_bucket_level_access: true
+
+# Production VPC & Networking (Expanded for growth)
+vpc:
+  create: true
+  vpc_name: "hdfc-bank-prod-vpc"
+  network_cidr: "10.100.0.0/22"          # Expanded to 1,024 IPs
+  subnet_name: "prod-gke-subnet"
+  subnet_cidr: "10.100.0.0/24"          # 256 IPs for nodes
+  pod_range_name: "pods-range"
+  pod_range_cidr: "10.1.0.0/18"         # 16,384 IPs for high pod density
+  svc_range_name: "services-range"
+  svc_range_cidr: "10.2.0.0/20"         # 4,096 IPs for cluster services
+
+# Hardened Bastion Configuration
+bastion:
+  create: true
+  name: "hdfc-bank-prod-bastion"
+  machine_type: "e2-standard-2"         # Increased RAM/CPU for reliability
+  disk_size_gb: 50
+
+
+
+# GKE Cluster Specifications (Production Grade)
+gke:
+  cluster_name: "gke-hdfc-bank-prod"
+  cluster_version: "1.35.6-gke.1710000"
+  release_channel: "REGULAR"
+  machine_type: "e2-standard-2"         # Production baseline: 4 vCPU / 16 GB RAM
+  node_count: 3                         # Start with 3 nodes for HA
+  disk_size_gb: 100                     # Increased disk for logs/images
+  enable_autoscaling: true
+  min_nodes: 2
+  max_nodes: 10                         # Scale higher for demand
+  delete_protection: false               # CRITICAL: Prevent accidental deletion
+  enable_filestore_csi: true
+  secretManagerEnabled: true
+  workloadIdentityEnabled: true
+  cluster_addons:
+    http_load_balancing: true
+    horizontal_pod_autoscaling: true    # Enabled for production workloads
+    gce_csi_driver: true
+
+# gke:
+#   cluster_name: "gke-client-a-dev"
+#   cluster_version: "1.35.6-gke.1710000"
+#   release_channel: "REGULAR"
+#   machine_type: "e2-medium"             # Low-cost 2 vCPU / 4 GB RAM instance
+#   node_count: 1                         # Single node for R&D
+#   disk_size_gb: 30                      # Minimal disk size
+#   enable_autoscaling: true
+#   min_nodes: 1
+#   max_nodes: 4
+#   delete_protection: false
+#   enable_filestore_csi: true
+#   secretManagerEnabled: true
+#   workloadIdentityEnabled: true
+#   cluster_addons:
+#     http_load_balancing: true
+#     horizontal_pod_autoscaling: false
+#     gce_csi_driver: true
+
+
+
+
+# Cloud Filestore
+storage:
+  filestore:
+    create: true
+    tier: "ENTERPRISE"                  # Upgraded to Enterprise tier for Prod
+    file_share_name: "prod_shared_vol"
+    capacity_gb: 2048
+
+
+
+

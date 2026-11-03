@@ -1,0 +1,156 @@
+client:
+  name: "client-a"
+  account_id: "123456789012"
+  region: "ap-south-1"
+
+environment: "dev"
+
+# Add this new block for the phase 0 bootstrap deployment
+bootstrap:
+  bucket_name: "tf-state-client-a"
+  kms_alias: "alias/tf-state-client-a"
+
+
+vpc:
+  create: true
+  name: "vpc-client-a-dev"
+  cidr: "10.0.0.0/16"
+  
+  # Add your Availability Zones (ensure they match your ap-south-1 region)
+  azs: 
+    - "ap-south-1a"
+    - "ap-south-1b"
+    - "ap-south-1c"
+    
+  # Define the subnet blocks you want the module to create
+  private_subnets: 
+    - "10.0.1.0/24"
+    - "10.0.2.0/24"
+    - "10.0.3.0/24"
+  public_subnets: 
+    - "10.0.101.0/24"
+    - "10.0.102.0/24"
+    - "10.0.103.0/24"
+
+  existing_id: null
+  existing_private_subnets: []
+
+  enable_nat_gateway: true
+
+  single_nat_gateway: false
+
+  enable_flow_logs: true
+
+  enable_vpc_endpoints: true
+
+
+eks:
+  cluster_name: "eks-client-a-dev"
+  cluster_version: "1.30"
+  
+  # Production Best Practice: Enable Audit and API logging
+  cluster_enabled_log_types: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+  # NEW: Toggle to bypass IAM TagResource errors during log group creation
+  create_cloudwatch_log_group: false
+
+  # Production Best Practice: Explicitly define multiple node groups
+  node_groups:
+    # 1. Core nodes for system workloads (Always On-Demand)
+    core_nodes:
+      min_size: 1
+      max_size: 3
+      desired_size: 1
+      instance_types: ["t3.medium"]
+      capacity_type: "ON_DEMAND"
+      ami_type: "AL2_x86_64"
+      
+    # 2. Application nodes for your services (Can use Spot instances to save money)
+    app_nodes:
+      min_size: 1
+      max_size: 5
+      desired_size: 1
+      instance_types: ["t3.large", "m5.large"]
+      capacity_type: "SPOT"
+      ami_type: "AL2_x86_64"
+
+  cluster_addons:
+    coredns:
+      most_recent: true
+    kube-proxy:
+      most_recent: true
+    vpc-cni:
+      most_recent: true
+
+  tags:
+    Environment: "dev"
+    Client: "client-a"
+
+ebs:
+  # Create dynamically provisioned EBS volumes, or bind a pre-existing volume.
+  create: true
+  storage_class_name: "ebs-gp3"
+  existing_id: ""
+  existing_pv_name: "existing-ebs-pv"
+  existing_pvc_name: "existing-ebs-pvc"
+  existing_pvc_namespace: "default"
+  existing_fs_type: "ext4"
+  # Leave null to use the EKS-compatible default add-on version.
+  addon_version: null
+  # Use Retain when PVC deletion must not delete the underlying EBS volume.
+  reclaim_policy: "Delete"
+
+efs:
+  # Create a new EFS file system, or use one that already exists.
+  create: true
+  existing_id: ""
+  storage_class_name: "efs-sc"
+  access_point_base_path: "/dynamic_provisioning"
+  transition_to_ia: "AFTER_30_DAYS"
+  addon_version: null
+  reclaim_policy: "Delete"
+
+monitoring:
+  namespace: "monitoring"
+  chart_version: "86.0.0"
+  override_values_file: "clients/client-a/monitoring-and-logging/override.yaml"
+
+logging:
+  # The shared override file is relative to 12-platform-config.
+  override_values_file: "clients/client-a/monitoring-and-logging/override.yaml"
+  loki_chart_version: "6.34.0"
+  alloy_chart_version: "1.11.0"
+
+
+bastion:
+  create: true
+  instance_type: "t2.micro"
+  username: "ssm-user" # Default user for SSM Session Manager
+  password: null # Use null to disable password authentication and rely on SSM Session Manager
+  existing_role_arn: ""
+
+  # Restrict SSH access to your VPN or Specific IPs
+  ingress_rules:
+    - description: "SSH from Corporate VPN"
+      from_port: 22
+      to_port: 22
+      protocol: "tcp"
+      cidr_blocks: # IMPORTANT: Replace with your actual trusted CIDR blocks
+          - "0.0.0.0/0" # e.g., "203.0.113.45/32" for a single IP
+        # - "10.200.0.0/16"     # Example Corporate VPN CIDR
+
+  egress_rules:
+    - description: "Allow all outbound traffic"
+      from_port: 0
+      to_port: 0
+      protocol: "-1"
+      cidr_blocks:
+        - "0.0.0.0/0"
+
+# if already exist use the below code
+# bastion:
+#   create: false
+#   instance_type: ""
+#   username: ""
+#   password: ""
+#   existing_role_arn: "arn:aws:iam::680736395115:role/your-existing-bastion-role"

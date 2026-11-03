@@ -1,0 +1,129 @@
+apps:
+  enabled: true
+
+
+client:
+  name: "hdfc-bank"
+
+environment: "dev"
+
+
+releaseName: backend-web-dev
+timeout: 600
+
+namespace:
+  create: true
+  name: backend-web-dev
+
+# --- GCP IAM & WORKLOAD IDENTITY CONFIG ---
+gcpProject: "eks-terraform"
+googleServiceAccountName: "backend-web-dev-gsa"
+
+serviceAccount:
+  create: true
+  name: backend-web-dev-sa
+  annotations:
+    iam.gke.io/gcp-service-account: "backend-web-dev-gsa@eks-terraform.iam.gserviceaccount.com"
+
+# --- YOUR CUSTOM FLASK IMAGE ---
+image:
+  # Replace this with your actual Artifact Registry or Docker Hub path and tag
+  repository: testuser40/sample-flask-app
+  tag: "latest"
+  pullPolicy: Always # Ensures GKE pulls the fresh image version on deploy
+
+# Note: No "command" or "args" needed here because your image already runs the Flask app internally!
+
+service:
+  enabled: true
+  port: 8000       # The port exposed by the Kubernetes service
+  targetPort: 8000   # The port your Flask app is listening on inside the container
+  type: NodePort
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+persistence:
+  enabled: true 
+  storageClassName: "hdfc-bank-dev-rwx"
+  accessMode: ReadWriteMany
+  size: 100Gi
+  mountPath: /var/log
+
+# --- INGRESS CONFIGURATION ---
+ingress:
+  enabled: true
+  className: "gce"
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+      # host: "backend.local"
+  tls: []
+
+configMap:
+  enabled: true
+  data:
+    FLASK_ENV: "devuction"
+    PORT: "8000"
+    LOG_LEVEL: "info"
+
+secret:
+  enabled: false
+  data: {}
+
+# --- GCP SECRET MANAGER INTEGRATION ---
+secretManager:
+  enabled: true
+  driver: "secrets-store-gke.csi.k8s.io"
+  secrets:
+    - secretId: "backend-db-password"
+      secretValue: "fallback-db-pass"
+      key: "DB_PASSWORD"
+    - secretId: "backend-jwt-secret"
+      secretValue: "fallback-jwt-secret"
+      key: "JWT_SECRET"
+
+env:
+  - name: APP_NAME
+    value: "backend-web-dev-service"
+
+# --- HEALTH PROBES (Targeting port 8000) ---
+probes:
+  startup:
+    enabled: true
+    path: / 
+    port: 8000
+  readiness:
+    enabled: true
+    path: /
+    port: 8000
+  liveness:
+    enabled: true
+    path: /
+    port: 8000
+
+# securityContext:
+#   runAsNonRoot: false
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop:
+#       - ALL
+#     add:
+#       - CHOWN
+#       - SETUID
+#       - SETGID
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

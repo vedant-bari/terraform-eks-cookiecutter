@@ -1,0 +1,86 @@
+# ==============================================================================
+# GCP PLATFORM CONFIGURATION: amex (PRODUCTION ENVIRONMENT)
+# ==============================================================================
+
+client:
+  name: "amex"
+
+environment: "prod"
+
+gcp:
+  project_id: "eks-terraform"  # REPLACE with your actual Production GCP Project ID
+  region: "asia-south1"
+  zone: "asia-south1-a"
+  tags:
+    env: "prod"
+    client: "amex"
+    managed-by: "terragrunt"
+    owner: "platform-engineering"
+
+# Dedicated Bootstrap Configuration
+bootstrap:
+  state_bucket_name: "gcp-tf-state-amex-prod"
+  force_destroy: false
+  uniform_bucket_level_access: true
+
+# Production VPC & Networking (Expanded for growth)
+vpc:
+  create: true
+  vpc_name: "amex-prod-vpc"
+  network_cidr: "10.100.0.0/22"          # Expanded to 1,024 IPs
+  subnet_name: "prod-gke-subnet"
+  subnet_cidr: "10.100.0.0/24"          # 256 IPs for nodes
+  pod_range_name: "pods-range"
+  pod_range_cidr: "10.1.0.0/18"         # 16,384 IPs for high pod density
+  svc_range_name: "services-range"
+  svc_range_cidr: "10.2.0.0/20"         # 4,096 IPs for cluster services
+
+# Hardened Bastion Configuration
+bastion:
+  create: true
+  name: "amex-prod-bastion"
+  machine_type: "e2-standard-2"         # Increased RAM/CPU for reliability
+  disk_size_gb: 50
+
+
+
+# GKE Cluster Specifications (Production Grade)
+gke:
+  cluster_name: "gke-amex-prod"
+  cluster_version: "1.35.7-gke.1027000"
+  release_channel: "REGULAR"
+  machine_type: "e2-standard-2"         # Production baseline: 4 vCPU / 16 GB RAM
+  node_count: 3                         # Start with 3 nodes for HA
+  disk_size_gb: 100                     # Increased disk for logs/images
+  enable_autoscaling: true
+  min_nodes: 2
+  max_nodes: 10                         # Scale higher for demand
+  delete_protection: false               # CRITICAL: Prevent accidental deletion
+  enable_filestore_csi: true
+  secretManagerEnabled: true
+  workloadIdentityEnabled: true
+  cluster_addons:
+    http_load_balancing: true
+    horizontal_pod_autoscaling: true    # Enabled for production workloads
+    gce_csi_driver: true
+
+# Cloud Filestore (Optional: Set create to false if not testing shared NFS)
+storage:
+  create: true
+  ##kubernetes level 
+  storageClassName: "amex-prod-rwx"
+  storageProvisioner: "filestore.csi.storage.gke.io"
+  tier: "standard"
+  vpcNetworkName: "amex-prod-vpc"
+  
+  ##cloud level
+  # Optional: Filestore options if using managed NFS storage
+  filestore:
+    create: true
+    tier: "STANDARD"
+    file_share_name: "prod_shared_vol"
+    capacity_gb: 1024
+
+
+jenkins:
+  create: true

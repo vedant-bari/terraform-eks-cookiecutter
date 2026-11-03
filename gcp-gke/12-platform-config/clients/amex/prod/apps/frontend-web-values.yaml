@@ -1,0 +1,157 @@
+apps:
+  enabled: true
+client:
+  name: "amex"
+environment: "prod"
+
+releaseName: next-js-web-prod
+timeout: 1200
+
+   
+
+namespace:
+  create: true
+  name: next-js-web-prod
+
+# serviceAccount:
+#   create: true
+# --- GCP IAM & WORKLOAD IDENTITY CONFIG ---
+gcpProject: "eks-terraform"
+googleServiceAccountName: "next-js-web-prod-gsa"
+
+serviceAccount:
+  create: true
+  name: next-js-web-prod-sa
+  annotations:
+    iam.gke.io/gcp-service-account: "next-js-web-prod-gsa@eks-terraform.iam.gserviceaccount.com"
+
+# image:
+#   repository: testuser40/sample-next-js
+#   tag: "latest"
+#   pullPolicy: IfNotPresent
+
+image:
+  # Just supply your image name; Terraform automatically injects the full GAR URL when enabled
+  repository: sample-next-js
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  enabled: true
+  port: 3000
+  targetPort: 3000
+  type: ClusterIP
+
+# replicaCount: 1
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+persistence:
+  enabled: true  
+  storageClassName: "amex-prod-rwx"
+  accessMode: ReadWriteMany
+  size: 100Gi
+  mountPath: /var/log
+
+# --- ADDED INGRESS CONFIGURATION ---
+ingress:
+  enabled: true
+  className: "gce" # Standard GKE Ingress controller class
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    # kubernetes.io/ingress.allow-http: "true"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+      # host: "next-js.local" # Replace with your domain or external IP mapping
+  tls: []
+  #  - secretName: next-js-tls
+  #    hosts:
+  #      - "next-js.local"
+# -----------------------------------
+
+configMap:
+  enabled: true
+  data:
+    APP_THEME: "dark"
+    LOG_LEVEL: "info"
+
+secret:
+  enabled: false
+  data: {}
+
+# --- GCP SECRET MANAGER INTEGRATION ---
+secretManager:
+  enabled: true
+  driver: "secrets-store-gke.csi.k8s.io"
+  secrets:
+    - key: "NEXT_PUBLIC_API_URL"
+      secretId: "NEXT_PUBLIC_API_URL"
+      secretValue: "https://jsonplaceholder.typicode.com/posts/1"
+
+
+
+env:
+  - name: NEXT_PUBLIC_API_URL
+    value: "https://jsonplaceholder.typicode.com/posts/1"
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    port: 3000
+    initialDelaySeconds: 0
+  readiness:
+    enabled: true
+    path: /
+    port: 3000
+    initialDelaySeconds: 0
+  liveness:
+    enabled: true
+    path: /
+    port: 3000
+    initialDelaySeconds: 0
+
+# securityContext:
+#   runAsNonRoot: false
+#   allowPrivilegeEscalation: false
+#   capabilities:
+#     drop:
+#       - ALL
+#     add:
+#       - CHOWN
+#       - SETUID
+#       - SETGID
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# --- GOOGLE ARTIFACT REGISTRY CONFIG ---
+artifactRegistry:
+  enabled: true
+  format: "DOCKER"
+
+
+##jenkins
+jenkinsPipeline:
+  enabled: true
+  gitUrl: "https://github.com/vedant-bari/sample-next-js.git"
+  branch: "master"
+  credentials:
+    ##give a unique name to id  
+    - id: "next-js-web-prod-github-vedant-bari"
+      type: "usernamePassword"
+      type: "usernamePassword"
+      username: "ghp"     
+      secretValue: "ghp"

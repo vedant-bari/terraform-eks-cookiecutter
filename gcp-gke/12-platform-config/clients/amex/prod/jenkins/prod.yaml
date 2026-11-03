@@ -1,0 +1,159 @@
+controller:
+  component: "jenkins-master"
+  installWizard: false
+
+  image:
+    registry: "docker.io"
+    repository: "jenkins/jenkins"
+    tag: "2.579"
+
+  agentKubernetesProfile:
+    # Ensure Jenkins agents spawn using the Terraform-managed KSA
+    serviceAccount: "jenkins-agent"    
+
+  javaOpts: "-Djenkins.install.runSetupWizard=false"
+
+  serviceType: "ClusterIP"
+
+  testEnabled: false
+
+  admin:
+    username: "admin"
+    password: "adminPassword123"
+
+  ingress:
+    enabled: true
+    ingressClassName: "gce"
+
+  persistence:
+    enabled: true
+    accessMode: "ReadWriteMany"
+    storageClass: "standard-rwx"
+    size: 20Gi
+
+
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+    - credentials
+    - job-dsl
+    - pipeline-stage-view
+    - kubernetes-credentials-provider
+    
+  JCasC:
+    defaultConfig: false
+    configScripts:
+      jenkins-automation-config: |
+        jenkins:
+          securityRealm:
+            local:
+              allowsSignup: false
+              users:
+                - id: "$${controller.admin.username}"
+                  password: "$${controller.admin.password}"
+
+          authorizationStrategy:
+            loggedInUsersCanDoAnything:
+              allowAnonymousRead: false
+
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                serverUrl: "${cluster_endpoint}"
+                credentialsId: ""
+                serverCertificate: "${cluster_ca_certificate}"
+                namespace: "jenkins"
+                jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+                jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+                containerCapStr: "10"
+
+                templates:
+                  - name: "docker-agent"
+                    label: "docker-agent"
+                    namespace: "jenkins"
+
+                    yaml: |
+                      apiVersion: v1
+                      kind: Pod
+
+                      metadata:
+                        labels:
+                          app: jenkins-docker-agent
+
+                      spec:
+                        restartPolicy: Never
+                        serviceAccountName: "jenkins-agent"
+                        containers:
+                          - name: jnlp
+                            image: jenkins/inbound-agent:latest
+                            workingDir: /home/jenkins/agent
+
+                          - name: docker
+                            image: docker:27-cli
+                            command:
+                              - sh
+                              - -c
+                              - |
+                                echo "Docker CLI container started"
+                                echo "Waiting for Docker daemon..."
+
+                                until wget -qO- http://127.0.0.1:2375/_ping 2>/dev/null | grep -q OK; do
+                                  echo "Docker daemon not ready..."
+                                  sleep 2
+                                done
+
+                                echo "Docker daemon is ready!"
+
+                                while true; do
+                                  sleep 3600
+                                done
+
+                            env:
+                              - name: DOCKER_HOST
+                                value: tcp://127.0.0.1:2375
+
+                            volumeMounts:
+                              - name: workspace-volume
+                                mountPath: /workspace
+
+                          - name: docker-dind
+                            image: docker:27-dind
+                            serviceAccountName: "jenkins-agent"
+                            securityContext:
+                              privileged: true
+                            command:
+                              - dockerd
+                            args:
+                              - --host=tcp://0.0.0.0:2375
+                              - --host=unix:///var/run/docker.sock
+                              - --storage-driver=overlay2
+                            env:
+                              - name: DOCKER_TLS_CERTDIR
+                                value: ""
+                            ports:
+                              - name: docker
+                                containerPort: 2375
+                            volumeMounts:
+                              - name: docker-storage
+                                mountPath: /var/lib/docker
+                              - name: workspace-volume
+                                mountPath: /workspace
+
+                          - name: gcloud
+                            serviceAccountName: "jenkins-agent"
+                            image: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+                            command:
+                              - cat
+                            tty: true
+                            workingDir: /home/jenkins/agent
+
+                        volumes:
+                          - name: docker-storage
+                            emptyDir: {}
+                          - name: workspace-volume
+                            emptyDir: {}
+
+agent:
+  enabled: false

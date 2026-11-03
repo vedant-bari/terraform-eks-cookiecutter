@@ -1,0 +1,118 @@
+# Default values for the generic-app chart.
+# This file provides the defaults for the chart. Application-specific overrides
+# should be placed in the centralized configuration under 12-platform-config/.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- The namespace where the application will be deployed. This is a REQUIRED field.
+namespace: ""
+
+# -- Number of pod replicas if HPA is not enabled.
+replicaCount: 1
+
+# -- Container image settings.
+image:
+  # -- The image repository to pull from. **Required**.
+  repository: "nginx"
+  # -- The image tag to use. Immutable tags are highly recommended. **Required**.
+  tag: "latest"
+  # -- The image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Secrets for pulling images from a private registry.
+imagePullSecrets: []
+
+# -- Service Account configuration.
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+# -- Annotations and labels to add to the pod.
+podAnnotations: {}
+podLabels: {}
+
+# -- Security context for the entire pod.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Security context for the application container.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# -- The port your application container listens on.
+containerPort: 8080
+
+# -- Environment variables to pass to the container.
+env: []
+
+# -- Configuration for fetching secrets from AWS Secrets Manager.
+externalSecret:
+  enabled: false
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secretsmanager
+  remoteRef: ""
+  refreshInterval: 1h
+  targetSecretName: ""
+  creationPolicy: Owner
+
+# -- Kubernetes Service configuration.
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+# -- Ingress configuration for AWS Load Balancer Controller.
+ingress:
+  enabled: true
+  className: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+  hosts: []
+  tls: []
+
+# -- Health check probes for the container.
+probes:
+  startup: { enabled: false }
+  readiness: { enabled: false }
+  liveness: { enabled: false }
+
+# -- Resource requests and limits for the container.
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { cpu: 500m, memory: 512Mi }
+
+# -- Horizontal Pod Autoscaler (HPA) configuration.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# -- PodDisruptionBudget to ensure high availability.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# -- Persistent storage configuration (EFS).
+storage:
+  efs:
+    enabled: false
+
+# -- Node scheduling constraints.
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,469 @@
+# ============================================================
+# client-b / prod - Observability Overrides
+# ============================================================
+
+client:
+  name: "hdfc-bank"
+
+environment: "prod"
+
+
+# ============================================================
+# kube-prometheus-stack
+# ============================================================
+
+monitoring:
+  fullnameOverride: monitoring
+
+  # ----------------------------------------------------------
+  # Grafana
+  # ----------------------------------------------------------
+
+  grafana:
+    enabled: true
+
+    # --------------------------------------------------------
+    # Grafana replicas
+    #
+    # Using a ReadWriteOnce PVC.
+    # Keep a single replica unless Grafana is configured with
+    # shared/external storage.
+    # --------------------------------------------------------
+
+    replicas: 1
+
+    defaultDashboardsEnabled: true
+    defaultDashboardsEditable: false
+    defaultDashboardsTimezone: browser
+
+    # --------------------------------------------------------
+    # Grafana admin credentials
+    #
+    # Testing only.
+    #
+    # Recommended for production:
+    # Use an existing Kubernetes Secret or an external secret
+    # manager instead of storing credentials in Git.
+    # --------------------------------------------------------
+
+    adminUser: "grafana-admin"
+    adminPassword: "admin@password"
+
+    # --------------------------------------------------------
+    # GKE Native Ingress
+    # --------------------------------------------------------
+
+    ingress:
+      enabled: true
+
+      ingressClassName: gce
+
+      annotations:
+        kubernetes.io/ingress.class: gce
+
+      hosts:
+        - "*"
+
+      path: /
+      pathType: Prefix
+
+    # --------------------------------------------------------
+    # Loki datasource
+    # --------------------------------------------------------
+
+    additionalDataSources:
+      - name: Loki
+        type: loki
+        url: http://loki.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+
+    # --------------------------------------------------------
+    # Grafana persistence
+    # --------------------------------------------------------
+
+    persistence:
+      enabled: true
+      storageClassName: standard-rwo
+
+      accessModes:
+        - ReadWriteOnce
+
+      size: 10Gi
+
+
+  # ----------------------------------------------------------
+  # Prometheus
+  # ----------------------------------------------------------
+
+  prometheus:
+    enabled: true
+
+    prometheusSpec:
+
+      # Two replicas for Prometheus HA
+      replicas: 2
+
+      # Prometheus retention
+      retention: 7d
+      retentionSize: 15GB
+
+      # Metrics scrape interval
+      scrapeInterval: 15s
+
+      # Persistent storage
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: standard-rwo
+
+            accessModes:
+              - ReadWriteOnce
+
+            resources:
+              requests:
+                storage: 20Gi
+
+
+# ============================================================
+# Loki
+# ============================================================
+
+loki:
+
+  # Single binary architecture
+  deploymentMode: SingleBinary
+
+  loki:
+
+    # No Loki authentication inside the cluster.
+    #
+    # Traffic is internal:
+    # Alloy -> Loki
+    # Grafana -> Loki
+    auth_enabled: false
+
+    # --------------------------------------------------------
+    # Loki storage
+    #
+    # Required by the Loki Helm chart.
+    # --------------------------------------------------------
+
+    storage:
+      type: filesystem
+
+      bucketNames:
+        chunks: loki-chunks
+        ruler: loki-ruler
+
+    # --------------------------------------------------------
+    # Loki replication
+    # --------------------------------------------------------
+
+    commonConfig:
+      replication_factor: 1
+
+    # --------------------------------------------------------
+    # Loki schema
+    # --------------------------------------------------------
+
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+
+          index:
+            prefix: loki_index_
+            period: 24h
+
+    # --------------------------------------------------------
+    # Loki retention
+    # --------------------------------------------------------
+
+    limits_config:
+      retention_period: 168h
+
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+
+  # ----------------------------------------------------------
+  # Single Binary deployment
+  # ----------------------------------------------------------
+
+  singleBinary:
+    replicas: 1
+
+    persistence:
+      enabled: true
+
+      storageClass: standard-rwo
+
+      accessModes:
+        - ReadWriteOnce
+
+      size: 50Gi
+
+  # ----------------------------------------------------------
+  # Disable distributed Loki components
+  # ----------------------------------------------------------
+
+  backend:
+    replicas: 0
+
+  read:
+    replicas: 0
+
+  write:
+    replicas: 0
+
+  chunksCache:
+    enabled: false
+
+  resultsCache:
+    enabled: false
+
+
+# ============================================================
+# Grafana Alloy
+# ============================================================
+
+alloy:
+
+  fullnameOverride: alloy-logs
+
+  # ----------------------------------------------------------
+  # Deploy Alloy as a DaemonSet
+  #
+  # One Alloy Pod runs on every Kubernetes worker node.
+  # ----------------------------------------------------------
+
+  controller:
+    type: daemonset
+
+  # ----------------------------------------------------------
+  # RBAC
+  #
+  # Required for Kubernetes discovery.
+  # ----------------------------------------------------------
+
+  rbac:
+    create: true
+
+  # ----------------------------------------------------------
+  # Alloy configuration
+  # ----------------------------------------------------------
+
+  alloy:
+
+    configMap:
+
+      content: |-
+
+        // ======================================================
+        // Alloy Logging
+        // ======================================================
+
+        logging {
+          level  = "info"
+          format = "logfmt"
+        }
+
+
+        // ======================================================
+        // Kubernetes Pod Discovery
+        // ======================================================
+
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+
+        // ======================================================
+        // Kubernetes Metadata -> Loki Labels
+        //
+        // Your current Pods have:
+        //
+        // app.kubernetes.io/name=generic-app
+        //
+        // app.kubernetes.io/instance=backend-web-prod
+        //
+        // Therefore the resulting Loki labels become:
+        //
+        // namespace="backend-web-prod"
+        // app="generic-app"
+        // instance="backend-web-prod"
+        // pod="<pod-name>"
+        // container="<container-name>"
+        // ======================================================
+
+        discovery.relabel "pod_logs" {
+
+          targets = discovery.kubernetes.pods.targets
+
+
+          // Namespace
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+
+
+          // Pod name
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+
+
+          // Container name
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+
+
+          // ----------------------------------------------------
+          // Application name
+          //
+          // Kubernetes label:
+          //
+          // app.kubernetes.io/name
+          //
+          // Example:
+          //
+          // generic-app
+          //
+          // Result:
+          //
+          // app="generic-app"
+          // ----------------------------------------------------
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+
+
+          // ----------------------------------------------------
+          // Application instance
+          //
+          // Kubernetes label:
+          //
+          // app.kubernetes.io/instance
+          //
+          // Example:
+          //
+          // backend-web-prod
+          //
+          // Result:
+          //
+          // instance="backend-web-prod"
+          // ----------------------------------------------------
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
+            target_label  = "instance"
+          }
+
+
+          // ----------------------------------------------------
+          // Application component
+          //
+          // Optional.
+          //
+          // If the Pod has:
+          //
+          // app.kubernetes.io/component=web
+          //
+          // Loki receives:
+          //
+          // component="web"
+          // ----------------------------------------------------
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+            target_label  = "component"
+          }
+
+
+          // ----------------------------------------------------
+          // Kubernetes node
+          // ----------------------------------------------------
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label  = "node"
+          }
+
+
+          // ----------------------------------------------------
+          // Workload/controller kind
+          //
+          // Example:
+          //
+          // ReplicaSet
+          // ----------------------------------------------------
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_controller_kind"]
+            target_label  = "workload_kind"
+          }
+
+
+          // ----------------------------------------------------
+          // Immediate controller name
+          //
+          // For a Deployment-created Pod, this is normally
+          // the ReplicaSet name.
+          //
+          // We keep this as diagnostic metadata but do not
+          // derive the Deployment name from its hash.
+          // ----------------------------------------------------
+
+          rule {
+            source_labels = ["__meta_kubernetes_pod_controller_name"]
+            target_label  = "workload"
+          }
+        }
+
+
+        // ======================================================
+        // Collect Kubernetes Pod Logs
+        // ======================================================
+
+        loki.source.kubernetes "pods" {
+
+          targets = discovery.relabel.pod_logs.output
+
+          forward_to = [
+            loki.write.default.receiver,
+          ]
+        }
+
+
+        // ======================================================
+        // Collect Kubernetes Events
+        // ======================================================
+
+        loki.source.kubernetes_events "cluster_events" {
+
+          forward_to = [
+            loki.write.default.receiver,
+          ]
+        }
+
+
+        // ======================================================
+        // Send Logs to Loki
+        // ======================================================
+
+        loki.write "default" {
+
+          endpoint {
+            url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }

@@ -1,0 +1,24 @@
+# ==============================================================================
+# aws PLATFORM CONFIGURATION: amex (devUCTION ENVIRONMENT)
+# ==============================================================================
+
+client:
+  name: "amex"
+
+environment: "dev"
+
+aws:
+  project_id: "eks-terraform"  # REPLACE with your actual devuction aws Project ID
+  region: "ap-south-1"
+  zone: "ap-south-1a"
+  tags:
+    env: "dev"
+    client: "amex"
+    managed-by: "terragrunt"
+    owner: "platform-engineering"
+
+# Dedicated Bootstrap Configuration
+bootstrap:
+  state_bucket_name: "aws-tf-state-amex-dev"
+  force_destroy: false
+  uniform_bucket_level_access: true
