@@ -1,4 +1,4 @@
-# gcp-gke/03-live/clients/hdfc-bank/dev/06-apps/terragrunt.hcl
+# gcp-gke/04-live/clients/<client>/<environment>/07-applications/terragrunt.hcl
 
 include "root" {
   path   = find_in_parent_folders("root.hcl")
@@ -50,7 +50,6 @@ inputs = {
   chart_path             = "${get_repo_root()}/gcp-gke/05-helm-charts/generic-app"
   cluster_endpoint       = dependency.gke.outputs.cluster_endpoint
   cluster_ca_certificate = dependency.gke.outputs.cluster_ca_certificate
-  repository_id          = dependency.gar.outputs.repository_id
 
   # Inject dependency outputs and merge configurations safely inside inputs
   apps = {
