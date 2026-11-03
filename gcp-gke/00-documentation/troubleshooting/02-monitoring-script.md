@@ -16,7 +16,7 @@ The setup automatically captures:
 ---
 
 ### Step 1: Enable Monitoring in Client Configuration
-Ensure your environment YAML configuration (e.g., `gcp-gke/01-config/clients/client-c/infra/prod.yaml`) has monitoring enabled:
+Ensure your environment YAML configuration (e.g., `gcp-gke/01-config/clients/client-c/prod/infra/prod.yaml`) has monitoring enabled:
 
 ```yaml
 monitoring:
@@ -28,10 +28,10 @@ monitoring:
 
 ### Step 2: Generate the Monitoring Layer Layout
 
-Run your dedicated monitoring scaffolding script, passing your client's YAML configuration path. This automatically creates the `05-monitoring` folder and links it to your GKE cluster outputs (`03-gke`):
+Run your dedicated monitoring scaffolding script, passing your client's YAML configuration path. This automatically creates the `05-monitoring` folder and links it to your GKE cluster outputs (`02-gke`):
 
 ```bash
-python3 gcp-gke/02-scripts/scaffolding/scaffold_monitoring.py gcp-gke/01-config/clients/client-c/infra/prod.yaml
+python3 gcp-gke/02-scripts/scaffolding/scaffold_monitoring.py gcp-gke/01-config/clients/client-c/prod/infra/prod.yaml
 
 ```
 

@@ -1,5 +1,7 @@
 # Secure Bootstrap Layer Deletion Guide
 
+> **Historical reference only:** This document contains destructive instructions, including commands that recursively delete GCS objects. Do not use it for the repository restructure or routine state migration. Confirm retention, backups, and explicit change approval before any state-bucket cleanup.
+
 ## Overview
 Because the Terragrunt bootstrap layer houses the central remote state backend (`00-bootstrap`), it is heavily protected against accidental deletion by default. 
 
@@ -28,7 +30,7 @@ Always ensure that all downstream child modules (such as 01-network, 02-gke, dat
 ### Step 1: Lift the Terraform `prevent_destroy` Guard
 Terraform will block any destruction attempt while `prevent_destroy` is active. 
 
-1. Open **`gcp-gke/03-modules/00-bootstrap/main.tf`**.
+1. Open **`gcp-gke/03-modules/01-bootstrap/main.tf`**.
 2. Locate the `google_storage_bucket.tf_state` resource and **comment out or remove** the `lifecycle` block:
 
 ```hcl

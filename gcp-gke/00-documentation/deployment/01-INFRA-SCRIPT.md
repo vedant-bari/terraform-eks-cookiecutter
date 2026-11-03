@@ -9,7 +9,7 @@ Follow this strict step-by-step procedure to provision a new client environment 
 ---
 
 ### Step 1: Define Your Client Configuration
-Before running any scripts, ensure your client configuration YAML file is set up with the correct project details, region, and state bucket name (e.g., `gcp-gke/01-config/clients/client-c/infra/prod.yaml`).
+Before running any scripts, ensure your client configuration YAML file is set up with the correct project details, region, and state bucket name (e.g., `gcp-gke/01-config/clients/client-c/prod/infra/prod.yaml`).
 
 Example configuration structure:
 ```yaml
@@ -34,7 +34,7 @@ bootstrap:
 Run your Python scaffolding script, passing your client's YAML configuration path. This automatically builds the correct directory hierarchy for the client:
 
 ```bash
-python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/client-c/infra/prod.yaml
+python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/client-c/prod/infra/prod.yaml
 
 ```
 
@@ -45,7 +45,7 @@ python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/c
 Before Terragrunt can manage remote state, the target GCS bucket must exist in your Google Cloud project. Use the provided shell script to provision the bucket directly:
 
 ```bash
-./create-bootstrap-bucket.sh eks-terraform prod-gcp-tf-state-client-c-prod asia-south1
+bash gcp-gke/02-scripts/bootstrap/01-create-bootstrap-bucket.sh eks-terraform prod-gcp-tf-state-client-c-prod asia-south1
 
 ```
 
@@ -92,7 +92,7 @@ Once the bootstrap layer is successfully applied and state is active, navigate o
 cd ../
 
 # Execute sequential deployment for VPC, GKE, Bastion, and Storage
-terragrunt run-all apply
+terragrunt run --all apply
 
 ```
 

@@ -43,7 +43,7 @@ Use Python scaffolding scripts to dynamically generate client directory structur
 
 
 ```bash
-python3 02-02-scripts/scaffolding/02-scaffold_client.py 01-config/clients/<client-name>/infra/<env>.yaml
+python3 02-scripts/scaffolding/02-scaffold_client.py 01-config/clients/<client-name>/<env>/infra/<env>.yaml
 
 ```
 
@@ -52,7 +52,7 @@ python3 02-02-scripts/scaffolding/02-scaffold_client.py 01-config/clients/<clien
 
 
 ```bash
-python3 02-02-scripts/scaffolding/scaffold_monitoring.py 01-config/clients/<client-name>/monitoring-and-logging/<env>.yaml
+python3 02-scripts/scaffolding/scaffold_monitoring.py 01-config/clients/<client-name>/monitoring-and-logging/<env>.yaml
 
 ```
 
@@ -61,7 +61,7 @@ python3 02-02-scripts/scaffolding/scaffold_monitoring.py 01-config/clients/<clie
 
 
 ```bash
-python3 02-scripts/03-scaffold_apps.py 01-config/clients/<client-name>/apps/<app-name>-values.yaml
+python3 02-scripts/scaffolding/04-scaffold_apps.py 01-config/clients/<client-name>/<env>/apps/<app-name>-values.yaml
 
 ```
 

@@ -33,7 +33,7 @@ cloud-platform-blueprint-kubernetes/
 │   │           └── apps/              # 📥 Drop your YAML values files here!
 │   │               ├── frontend-web-prod-values.yaml
 │   │               └── backend-api-prod-values.yaml
-│   └── 13-helm-charts-app/
+│   └── 05-helm-charts/
 │       └── generic-app/               # Reusable Helm chart
 └── docs/
     └── app-deployment-pipeline.md
@@ -48,7 +48,7 @@ cloud-platform-blueprint-kubernetes/
 
 Create a new YAML file inside the target client's application directory.
 
-* **Path:** `gcp-gke/01-config/clients/<client-name>/apps/<app-name>-values.yaml`
+* **Path:** `gcp-gke/01-config/clients/<client-name>/<env>/apps/<app-name>-values.yaml`
 * **Sample Content (`frontend-web-prod-values.yaml`):**
 
 ```yaml
@@ -114,7 +114,7 @@ resources:
 If you are setting up the client environment for the first time, execute the scaffolding script to generate the underlying folder infrastructure and Terragrunt configuration:
 
 ```bash
-python3 gcp-gke/02-scripts/scaffolding/04-scaffold_apps.py gcp-gke/01-config/clients/client-c/infra/prod.yaml
+python3 gcp-gke/02-scripts/scaffolding/04-scaffold_apps.py gcp-gke/01-config/clients/client-c/prod/infra/prod.yaml
 
 ```
 
@@ -174,4 +174,4 @@ terragrunt destroy
 | **Plan App Changes** | `cd gcp-gke/04-live/clients/<client>/prod/07-applications && terragrunt plan` |
 | **Deploy/Update Apps** | `cd gcp-gke/04-live/clients/<client>/prod/07-applications && terragrunt apply` |
 | **Destroy Apps** | `cd gcp-gke/04-live/clients/<client>/prod/07-applications && terragrunt destroy` |
-| **Full Environment Deploy** | `cd gcp-gke/04-live/clients/<client>/prod && terragrunt run-all apply` |
+| **Full Environment Deploy** | `cd gcp-gke/04-live/clients/<client>/prod && terragrunt run --all apply` |
