@@ -4,6 +4,8 @@ client:
   name: "amex"
 environment: "prod"
 releaseName: backend-web-prod
+timeout: 1200
+
 namespace:
   create: true
   name: backend-web-prod

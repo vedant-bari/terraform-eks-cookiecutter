@@ -48,6 +48,20 @@ def generate_apps_files(config_path):
     live_dir = os.path.join(repo_root, "04-live", "clients", client_name, environment)
     
     apps_enabled = config.get('apps', {}).get('enabled', False)
+    apps_dir = os.path.join(repo_root, "01-config", "clients", client_name, environment, "apps")
+
+    # If not explicitly enabled in infra yaml, inspect the apps/ folder for enabled apps
+    if not apps_enabled and os.path.isdir(apps_dir):
+        for app_file in os.listdir(apps_dir):
+            if app_file.endswith(".yaml") or app_file.endswith(".yml"):
+                try:
+                    app_data = load_yaml(os.path.join(apps_dir, app_file))
+                    if app_data and app_data.get('apps', {}).get('enabled', False):
+                        apps_enabled = True
+                        break
+                except Exception:
+                    pass
+
     if not apps_enabled:
         print(f"ℹ️ Applications layer is disabled in the YAML config for {client_name}. Skipping.")
         return

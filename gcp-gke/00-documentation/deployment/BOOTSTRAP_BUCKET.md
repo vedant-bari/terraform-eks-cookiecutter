@@ -1,4 +1,4 @@
-readme_content = """# GCS Remote State Bucket Setup
+# GCS Remote State Bucket Setup
 
 ## Overview
 This document outlines the standard procedure for pre-provisioning a Google Cloud Storage (GCS) bucket to act as a remote state backend for Terragrunt. 

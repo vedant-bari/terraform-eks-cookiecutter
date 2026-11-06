@@ -8,16 +8,16 @@ terraform {
 }
 
 inputs = {
-  project_id         = include.root.locals.config.gcp.project_id
-  region             = include.root.locals.config.gcp.region
-  
-  vpc_name           = include.root.locals.config.vpc.vpc_name
-  subnet_name        = include.root.locals.config.vpc.subnet_name
-  subnet_cidr        = include.root.locals.config.vpc.subnet_cidr
-  pod_range_name     = include.root.locals.config.vpc.pod_range_name
-  pod_range_cidr     = include.root.locals.config.vpc.pod_range_cidr
-  svc_range_name     = include.root.locals.config.vpc.svc_range_name
-  svc_range_cidr     = include.root.locals.config.vpc.svc_range_cidr
+  project_id = include.root.locals.config.gcp.project_id
+  region     = include.root.locals.config.gcp.region
+
+  vpc_name       = include.root.locals.config.vpc.vpc_name
+  subnet_name    = include.root.locals.config.vpc.subnet_name
+  subnet_cidr    = include.root.locals.config.vpc.subnet_cidr
+  pod_range_name = include.root.locals.config.vpc.pod_range_name
+  pod_range_cidr = include.root.locals.config.vpc.pod_range_cidr
+  svc_range_name = include.root.locals.config.vpc.svc_range_name
+  svc_range_cidr = include.root.locals.config.vpc.svc_range_cidr
 
   # Flow logs mapped from YAML with graceful fallbacks
   flow_logs          = try(include.root.locals.config.vpc.flow_logs, true)

@@ -8,11 +8,11 @@ module "vpc" {
 
   subnets = [
     {
-      subnet_name               = var.subnet_name
-      subnet_ip                 = var.subnet_cidr
-      subnet_region             = var.region
-      subnet_private_access     = true
-      
+      subnet_name           = var.subnet_name
+      subnet_ip             = var.subnet_cidr
+      subnet_region         = var.region
+      subnet_private_access = true
+
       # Now pulling dynamic values from module variables
       subnet_flow_logs          = var.flow_logs
       subnet_flow_logs_interval = var.flow_logs_interval

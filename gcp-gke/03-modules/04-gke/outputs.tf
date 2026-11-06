@@ -14,3 +14,8 @@ output "cluster_ca_certificate" {
   description = "Public certificate authority data for the cluster."
   sensitive   = true
 }
+
+output "service_account" {
+  value       = module.gke.service_account
+  description = "The service account used by node pools."
+}

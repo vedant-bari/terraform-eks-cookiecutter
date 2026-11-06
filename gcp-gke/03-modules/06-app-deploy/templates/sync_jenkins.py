@@ -19,21 +19,23 @@ def main():
     xml_path = sys.argv[2]
     
     jenkins_url = os.environ.get("JENKINS_URL", "http://localhost:8080")
-    user = "admin"
+    user = os.environ.get("JENKINS_ADMIN_USER", "admin")
+    password = os.environ.get("JENKINS_ADMIN_PASSWORD", "")
     print(f"[DEBUG] Target Jenkins URL: {jenkins_url}, Job Name: {job_name}")
 
-    # Fetch admin password from k8s secret
-    print("[DEBUG] Fetching Jenkins admin password from Kubernetes secret...")
-    pass_cmd = subprocess.run(
-        ["kubectl", "get", "secret", "jenkins", "-n", "jenkins", "-o", "jsonpath={.data.jenkins-admin-password}"],
-        capture_output=True, text=True
-    )
-    
-    if pass_cmd.returncode != 0:
-        print(f"Error: Failed to fetch Jenkins secret from Kubernetes: {pass_cmd.stderr}")
-        sys.exit(1)
+    if not password:
+        # Fetch admin password from k8s secret via kubectl fallback
+        print("[DEBUG] Fetching Jenkins admin password from Kubernetes secret via kubectl...")
+        pass_cmd = subprocess.run(
+            ["kubectl", "get", "secret", "jenkins", "-n", "jenkins", "-o", "jsonpath={.data.jenkins-admin-password}"],
+            capture_output=True, text=True
+        )
         
-    password = base64.b64decode(pass_cmd.stdout.strip()).decode('utf-8')
+        if pass_cmd.returncode != 0:
+            print(f"Error: Failed to fetch Jenkins secret from Kubernetes: {pass_cmd.stderr}")
+            sys.exit(1)
+            
+        password = base64.b64decode(pass_cmd.stdout.strip()).decode('utf-8').strip()
     print("[DEBUG] Successfully retrieved Jenkins admin password.")
 
     # Set up cookie jar for session management
@@ -41,12 +43,16 @@ def main():
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
     urllib.request.install_opener(opener)
 
-    def make_request(url, data=None, headers={}, method=None, allow_404=False):
+    def make_request(url, data=None, headers=None, method=None, allow_404=False):
+        if headers is None:
+            headers = {}
         if method is None:
             method = "POST" if data is not None else "GET"
+            
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         auth = base64.b64encode(f"{user}:{password}".encode()).decode()
         req.add_header("Authorization", f"Basic {auth}")
+        
         try:
             with urllib.request.urlopen(req) as response:
                 return response.read()
@@ -69,7 +75,7 @@ def main():
         print(f"[DEBUG] Executing delete for job: {job_name}")
         
         headers = {}
-        crumb_res = make_request(f"{jenkins_url}/crumbIssuer/api/json", allow_404=True)
+        crumb_res = make_request(f"{jenkins_url}/crumbIssuer/api/json", headers={}, allow_404=True)
         if crumb_res:
             try:
                 crumb_data = json.loads(crumb_res.decode())
@@ -77,7 +83,6 @@ def main():
             except Exception:
                 pass
 
-        # Explicitly pass method="POST" for doDelete
         make_request(f"{jenkins_url}/job/{job_name}/doDelete", data=b"", headers=headers, method="POST", allow_404=True)
         print(f"Successfully deleted Jenkins job: {job_name}")
         sys.exit(0)
@@ -95,12 +100,13 @@ def main():
 
     # Get crumb token for CSRF protection
     print("[DEBUG] Requesting CSRF crumb issuer...")
-    headers = {'Content-Type': 'application/xml'}
-    crumb_res = make_request(f"{jenkins_url}/crumbIssuer/api/json", allow_404=True)
+    crumb_res = make_request(f"{jenkins_url}/crumbIssuer/api/json", headers={}, allow_404=True)
+    
+    req_headers = {'Content-Type': 'application/xml'}
     if crumb_res:
         try:
             crumb_data = json.loads(crumb_res.decode())
-            headers[crumb_data['crumbRequestField']] = crumb_data['crumb']
+            req_headers[crumb_data['crumbRequestField']] = crumb_data['crumb']
             print(f"[DEBUG] Acquired CSRF crumb header: {crumb_data['crumbRequestField']}")
         except Exception as e:
             print(f"[DEBUG] Warning: Failed to parse crumb JSON: {e}")
@@ -109,16 +115,30 @@ def main():
 
     # Check if job exists
     print(f"[DEBUG] Checking if job '{job_name}' already exists in Jenkins...")
-    job_exists = make_request(f"{jenkins_url}/job/{job_name}/api/json", allow_404=True)
+    job_exists = make_request(f"{jenkins_url}/job/{job_name}/api/json", headers={}, allow_404=True)
     
     if job_exists is not None:
         print(f"[DEBUG] Job exists. Updating configuration...")
-        make_request(f"{jenkins_url}/job/{job_name}/config.xml", data=config_xml.encode('utf-8'), headers=headers, method="POST")
+        make_request(f"{jenkins_url}/job/{job_name}/config.xml", data=config_xml.encode('utf-8'), headers=req_headers, method="POST")
         print(f"Successfully updated Jenkins job: {job_name}")
     else:
         print(f"[DEBUG] Job does not exist. Creating new item...")
-        make_request(f"{jenkins_url}/createItem?name={job_name}", data=config_xml.encode('utf-8'), headers=headers, method="POST")
+        make_request(f"{jenkins_url}/createItem?name={job_name}", data=config_xml.encode('utf-8'), headers=req_headers, method="POST")
         print(f"Successfully created Jenkins job: {job_name}")
+
+    # --- AUTOMATICALLY TRIGGER INITIAL BUILD ---
+    print(f"[DEBUG] Triggering initial build for job '{job_name}'...")
+    # Build endpoint accepts POST requests with empty data but requires CSRF crumb header
+    build_headers = {}
+    if crumb_res:
+        try:
+            crumb_data = json.loads(crumb_res.decode())
+            build_headers[crumb_data['crumbRequestField']] = crumb_data['crumb']
+        except Exception:
+            pass
+
+    make_request(f"{jenkins_url}/job/{job_name}/build", data=b"", headers=build_headers, method="POST")
+    print(f"Successfully triggered initial build for Jenkins job: {job_name}")
 
 if __name__ == "__main__":
     main()

@@ -8,9 +8,15 @@ resource "kubernetes_role_v1" "jenkins_deployer" {
   }
 
   rule {
-    api_groups = ["", "apps"]
-    resources  = ["deployments", "deployments/scale"]
+    api_groups = ["apps"]
+    resources  = ["deployments", "deployments/scale", "replicasets"]
     verbs      = ["get", "list", "watch", "update", "patch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods", "pods/log", "services"]
+    verbs      = ["get", "list", "watch"]
   }
 
   depends_on = [
@@ -42,4 +48,4 @@ resource "kubernetes_role_binding_v1" "jenkins_deployer_binding" {
     helm_release.app_deployment,
     kubernetes_role_v1.jenkins_deployer
   ]
-} 
+}

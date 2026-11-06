@@ -1,20 +1,7 @@
-terraform {
-  required_providers {
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.0.0"
-    }
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 4.0.0"
-    }
-  }
-}
-
 data "google_client_config" "default" {}
 
 provider "kubernetes" {
-  host                   = "https://${var.cluster_endpoint}"
+  host                   = startswith(var.cluster_endpoint, "https://") ? var.cluster_endpoint : "https://${var.cluster_endpoint}"
   token                  = data.google_client_config.default.access_token
   cluster_ca_certificate = base64decode(var.cluster_ca_certificate)
 }

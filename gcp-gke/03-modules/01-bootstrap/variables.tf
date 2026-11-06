@@ -23,11 +23,11 @@ variable "tags" {
 variable "force_destroy" {
   description = "Whether to force destroy the bucket or not?"
   type        = bool
-  default = false
+  default     = false
 }
 
 variable "uniform_bucket_level_access" {
   description = "Whether to force destroy the bucket or not?"
   type        = bool
-  default = false
+  default     = false
 }

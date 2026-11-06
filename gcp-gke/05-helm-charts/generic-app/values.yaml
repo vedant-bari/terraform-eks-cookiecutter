@@ -1,0 +1,85 @@
+# Default values for generic-app.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+releaseName: ""
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: false
+  name: "default"
+
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "stable-alpine"
+
+replicaCount: 1
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+ingress:
+  enabled: false
+  className: "gce"
+  annotations: {}
+  hosts: []
+  tls: []
+
+persistence:
+  enabled: false
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  mountPath: /data
+
+configMap:
+  enabled: false
+  data: {}
+
+secret:
+  enabled: false
+  data: {}
+
+secretManager:
+  enabled: false
+  driver: "secrets-store-gke.csi.k8s.io"
+  secrets: []
+
+env: []
+envFromSecrets: []
+
+securityContext: {}
+
+resources: {}
+
+probes:
+  startup:
+    enabled: false
+    path: /
+    port: 80
+  readiness:
+    enabled: false
+    path: /
+    port: 80
+  liveness:
+    enabled: false
+    path: /
+    port: 80
+

@@ -11,8 +11,8 @@ This directory contains a containerized environment pre-configured with all the 
 ## 🛠️ Included Tools & Stack
 
 * **Python 3.11** (with `PyYAML` and `requests` for platform scaffolding and parsing scripts)
-* **Terraform** (`v1.6.6`)
-* **Terragrunt** (`v0.55.0`)
+* **Terraform** (`v1.15.8`)
+* **Terragrunt** (`v1.1.2`)
 * **Google Cloud CLI (`gcloud`)**
 * **`kubectl`** (latest stable release)
 * **Helm** (v3)

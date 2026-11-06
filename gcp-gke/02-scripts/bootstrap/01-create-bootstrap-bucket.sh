@@ -13,22 +13,24 @@
 set -e
 
 # 1. Validate input arguments
-if [ "$#" -ne 3 ]; then
-    echo "Error: Missing required arguments."
-    echo "Usage: $0 <PROJECT_ID> <BUCKET_NAME> <REGION>"
-    echo "Example: $0 my-gcp-project-123 prod-gcp-tf-state-client-b-prod asia-south1"
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+    echo "Error: Invalid number of arguments."
+    echo "Usage: $0 <PROJECT_ID> <BUCKET_NAME> <REGION> [CLIENT_NAME]"
+    echo "Example: $0 my-gcp-project-123 prod-gcp-tf-state-client-b-prod asia-south1 client-b"
     exit 1
 fi
 
 PROJECT_ID="$1"
 BUCKET_NAME="$2"
 REGION="$3"
+CLIENT_NAME="${4:-default}"
 
 echo "--------------------------------------------------"
 echo "Starting bootstrap bucket provisioning..."
 echo "Project ID : ${PROJECT_ID}"
 echo "Bucket Name: ${BUCKET_NAME}"
 echo "Region     : ${REGION}"
+echo "Client     : ${CLIENT_NAME}"
 echo "--------------------------------------------------"
 
 # 2. Create the GCS bucket with Uniform Bucket-Level Access
@@ -45,7 +47,7 @@ gcloud storage buckets update gs://${BUCKET_NAME} --versioning
 # 4. Attach operational labels
 echo "[3/4] Applying tags and labels..."
 gcloud storage buckets update gs://${BUCKET_NAME} \
-  --update-labels=environment=prod,managed-by=terragrunt,client=client-b
+  --update-labels=environment=prod,managed-by=terragrunt,client=${CLIENT_NAME}
 
 # 5. Create temporary lifecycle configuration and apply it
 echo "[4/4] Setting up retention and lifecycle rules..."

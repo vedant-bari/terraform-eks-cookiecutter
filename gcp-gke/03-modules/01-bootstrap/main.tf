@@ -20,8 +20,8 @@ resource "google_project_service" "apis" {
 
 # 2. GCS Bucket for Terragrunt Remote State
 resource "google_storage_bucket" "tf_state" {
-  name                        = var.state_bucket_name
-  location                    = var.region
+  name     = var.state_bucket_name
+  location = var.region
   # project                     = var.project_id
   uniform_bucket_level_access = var.uniform_bucket_level_access
   force_destroy               = var.force_destroy
@@ -44,7 +44,7 @@ resource "google_storage_bucket" "tf_state" {
     prevent_destroy = true
   }
 
-  labels = var.tags  # <--- Uncommented for tracking
+  labels = var.tags # <--- Uncommented for tracking
 
   depends_on = [google_project_service.apis]
 }

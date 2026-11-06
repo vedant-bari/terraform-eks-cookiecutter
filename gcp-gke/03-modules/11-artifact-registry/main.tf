@@ -2,15 +2,9 @@ data "google_project" "project" {
   project_id = var.project_id
 }
 
-data "google_container_cluster" "cluster" {
-  name     = var.cluster_name
-  location = var.region
-  project  = var.project_id
-}
-
 locals {
-  cluster_sa           = try(data.google_container_cluster.cluster.node_config[0].service_account, "")
-  node_service_account = (local.cluster_sa == "" || local.cluster_sa == "default") ? "${data.google_project.project.number}-compute@developer.gserviceaccount.com" : local.cluster_sa
+  default_sa           = "${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  node_service_account = (var.node_service_account != null && var.node_service_account != "" && var.node_service_account != "default") ? var.node_service_account : local.default_sa
 }
 
 resource "google_artifact_registry_repository" "shared_repo" {

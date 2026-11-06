@@ -1,5 +1,5 @@
 apps:
-  enabled: true
+  enabled: false
 client:
   name: "amex"
 environment: "prod"
@@ -151,7 +151,6 @@ jenkinsPipeline:
   credentials:
     ##give a unique name to id  
     - id: "next-js-web-prod-github-vedant-bari"
-      type: "usernamePassword"
       type: "usernamePassword"
       username: "ghp"     
       secretValue: "ghp"

@@ -12,10 +12,10 @@ resource "kubernetes_config_map_v1" "jenkins_job_xml_cm" {
 
   data = {
     "job.xml" = templatefile("${path.module}/templates/job-config.xml.tpl", {
-      job_name             = lookup(lookup(each.value, "jenkinsPipeline", {}), "jobName", "${each.key}-pipeline")
-      git_url              = lookup(lookup(each.value, "jenkinsPipeline", {}), "gitUrl", "")
-      branch               = lookup(lookup(each.value, "jenkinsPipeline", {}), "branch", "")
-      github_credentials = try(lookup(lookup(each.value, "jenkinsPipeline", {}), "credentials", [])[0].id, "")      
+      job_name           = lookup(lookup(each.value, "jenkinsPipeline", {}), "jobName", "${each.key}-pipeline")
+      git_url            = lookup(lookup(each.value, "jenkinsPipeline", {}), "gitUrl", "")
+      branch             = lookup(lookup(each.value, "jenkinsPipeline", {}), "branch", "")
+      github_credentials = try(lookup(lookup(each.value, "jenkinsPipeline", {}), "credentials", [])[0].id, "")
       # dockerhub_credential = lookup(lookup(each.value, "jenkinsPipeline", {}), "dockerhubCredentialsId", "")
 
       gcp_project  = var.project_id
@@ -106,20 +106,26 @@ resource "kubernetes_job_v1" "sync_jenkins_pipelines" {
         container {
           name    = "sync"
           image   = "python:3.11-slim"
-          command = ["/bin/sh", "-c"]
+          command = ["python3"]
           args = [
-            <<-EOT
-            apt-get update && apt-get install -y curl
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /usr/local/bin/
-            python3 /scripts/sync_jenkins.py "${lookup(lookup(each.value, "jenkinsPipeline", {}), "jobName", "${each.key}-pipeline")}" "/config/job.xml"
-            EOT
+            "/scripts/sync_jenkins.py",
+            lookup(lookup(each.value, "jenkinsPipeline", {}), "jobName", "${each.key}-pipeline"),
+            "/config/job.xml"
           ]
 
           env {
             name  = "JENKINS_URL"
             value = "http://jenkins.jenkins.svc.cluster.local:8080"
+          }
+
+          env {
+            name = "JENKINS_ADMIN_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = "jenkins"
+                key  = "jenkins-admin-password"
+              }
+            }
           }
 
           volume_mount {

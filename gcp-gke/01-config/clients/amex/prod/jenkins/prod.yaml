@@ -23,12 +23,13 @@ controller:
 
   ingress:
     enabled: true
-    ingressClassName: "gce"
+    annotations:
+      kubernetes.io/ingress.class: "gce"
 
   persistence:
     enabled: true
     accessMode: "ReadWriteMany"
-    storageClass: "standard-rwx"
+    storageClass: "amex-prod-rwx"
     size: 20Gi
 
 
@@ -41,7 +42,8 @@ controller:
     - job-dsl
     - pipeline-stage-view
     - kubernetes-credentials-provider
-    
+
+
   JCasC:
     defaultConfig: false
     configScripts:
@@ -51,8 +53,8 @@ controller:
             local:
               allowsSignup: false
               users:
-                - id: "$${controller.admin.username}"
-                  password: "$${controller.admin.password}"
+                - id: "admin"
+                  password: "adminPassword123"
 
           authorizationStrategy:
             loggedInUsersCanDoAnything:

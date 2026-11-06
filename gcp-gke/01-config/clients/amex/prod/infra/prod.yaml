@@ -84,3 +84,6 @@ storage:
 
 jenkins:
   create: true
+
+apps:
+  enabled: true

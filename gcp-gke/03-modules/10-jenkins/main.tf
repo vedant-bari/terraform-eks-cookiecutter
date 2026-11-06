@@ -47,9 +47,9 @@ resource "kubernetes_role_v1" "jenkins_secret_reader" {
   }
 
   rule {
-    api_groups     = [""]
-    resources      = ["secrets"]
-    verbs          = ["get", "list", "watch"]
+    api_groups = [""]
+    resources  = ["secrets"]
+    verbs      = ["get", "list", "watch"]
   }
 }
 
@@ -94,4 +94,80 @@ resource "helm_release" "jenkins" {
     kubernetes_role_binding_v1.jenkins_secret_reader_binding,
     kubernetes_service_account_v1.jenkins_agent_sa
   ]
+}
+
+# 8. RBAC ClusterRole: Allow Jenkins CI/CD agents to deploy and verify rollouts across namespaces
+resource "kubernetes_cluster_role_v1" "jenkins_agent_deployer" {
+  metadata {
+    name = "jenkins-agent-deployer"
+  }
+
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments", "deployments/scale", "replicasets", "statefulsets", "daemonsets"]
+    verbs      = ["get", "list", "watch", "update", "patch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods", "pods/log", "services", "configmaps"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+# 9. RBAC ClusterRoleBinding: Bind ClusterRole to the Jenkins Agent ServiceAccount
+resource "kubernetes_cluster_role_binding_v1" "jenkins_agent_deployer_binding" {
+  metadata {
+    name = "jenkins-agent-deployer-binding"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.jenkins_agent_deployer.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.jenkins_agent_sa.metadata[0].name
+    namespace = kubernetes_namespace_v1.jenkins.metadata[0].name
+  }
+}
+
+# 8. RBAC ClusterRole: Allow Jenkins CI/CD agents to deploy and verify rollouts across namespaces
+resource "kubernetes_cluster_role_v1" "jenkins_agent_deployer" {
+  metadata {
+    name = "jenkins-agent-deployer"
+  }
+
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments", "deployments/scale", "replicasets", "statefulsets", "daemonsets"]
+    verbs      = ["get", "list", "watch", "update", "patch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods", "pods/log", "services", "configmaps"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+# 9. RBAC ClusterRoleBinding: Bind ClusterRole to the Jenkins Agent ServiceAccount
+resource "kubernetes_cluster_role_binding_v1" "jenkins_agent_deployer_binding" {
+  metadata {
+    name = "jenkins-agent-deployer-binding"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.jenkins_agent_deployer.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.jenkins_agent_sa.metadata[0].name
+    namespace = kubernetes_namespace_v1.jenkins.metadata[0].name
+  }
 }

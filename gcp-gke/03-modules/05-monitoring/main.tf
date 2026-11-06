@@ -11,7 +11,7 @@ resource "helm_release" "prometheus_stack" {
   chart      = "kube-prometheus-stack"
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout    = 1200
-  values = [yamlencode(var.observability_config.monitoring)]
+  values     = [yamlencode(var.observability_config.monitoring)]
 }
 
 # 2. Loki Log Aggregator
@@ -21,7 +21,7 @@ resource "helm_release" "loki" {
   chart      = "loki"
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout    = 1200
-  values = [yamlencode(var.observability_config.loki)]
+  values     = [yamlencode(var.observability_config.loki)]
 }
 
 # 3. Grafana Alloy (Log Collector)
@@ -31,5 +31,5 @@ resource "helm_release" "alloy" {
   chart      = "alloy"
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout    = 1200
-  values = [yamlencode(var.observability_config.alloy)]
+  values     = [yamlencode(var.observability_config.alloy)]
 }

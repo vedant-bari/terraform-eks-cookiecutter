@@ -9,7 +9,7 @@ environment: "prod"
 
 
 releaseName: backend-web-prod
-timeout: 600
+timeout: 1200
 
 namespace:
   create: true

@@ -10,7 +10,14 @@ variable "region" {
 
 variable "cluster_name" {
   type        = string
-  description = "GKE cluster name to retrieve node service account"
+  description = "GKE cluster name (optional)"
+  default     = ""
+}
+
+variable "node_service_account" {
+  type        = string
+  description = "GKE Node Service Account email (optional)"
+  default     = ""
 }
 
 variable "repository_id" {

@@ -2,25 +2,25 @@ module "gke" {
   source  = "terraform-google-modules/kubernetes-engine/google"
   version = "~> 40.0"
 
-  project_id                 = var.project_id
-  name                       = var.cluster_name
-  region                     = var.region
-  zones                      = [var.zone]
-  
-  network                    = var.vpc_name
-  subnetwork                 = var.subnet_name
-  
+  project_id = var.project_id
+  name       = var.cluster_name
+  region     = var.region
+  zones      = [var.zone]
+
+  network    = var.vpc_name
+  subnetwork = var.subnet_name
+
   # IP Allocation Policy (VPC-Native)
-  ip_range_pods              = var.pod_range_name
-  ip_range_services          = var.svc_range_name
-  
+  ip_range_pods     = var.pod_range_name
+  ip_range_services = var.svc_range_name
+
   # Cluster Version & Release Channel
-  kubernetes_version         = var.cluster_version
-  release_channel            = var.release_channel
-  deletion_protection        = var.delete_protection
-  
-  remove_default_node_pool   = true
-  
+  kubernetes_version  = var.cluster_version
+  release_channel     = var.release_channel
+  deletion_protection = var.delete_protection
+
+  remove_default_node_pool = true
+
   # Security Addons
   identity_namespace          = var.workload_identity_enabled ? "enabled" : null
   enable_secret_manager_addon = var.secret_manager_enabled
@@ -33,15 +33,15 @@ module "gke" {
   # Node Pools Configuration mapped from YAML
   node_pools = [
     {
-      name              = "${var.cluster_name}-node-pool"
-      machine_type      = var.machine_type
-      node_count        = var.node_count
-      min_count         = var.enable_autoscaling ? var.min_nodes : null
-      max_count         = var.enable_autoscaling ? var.max_nodes : null
-      disk_size_gb      = var.disk_size_gb
-      disk_type         = var.disk_type
-      auto_upgrade      = true
-      auto_repair       = true
+      name         = "${var.cluster_name}-node-pool"
+      machine_type = var.machine_type
+      node_count   = var.node_count
+      min_count    = var.enable_autoscaling ? var.min_nodes : null
+      max_count    = var.enable_autoscaling ? var.max_nodes : null
+      disk_size_gb = var.disk_size_gb
+      disk_type    = var.disk_type
+      auto_upgrade = true
+      auto_repair  = true
     }
   ]
 

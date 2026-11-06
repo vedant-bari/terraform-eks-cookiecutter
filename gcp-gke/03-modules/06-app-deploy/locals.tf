@@ -64,7 +64,7 @@ locals {
             type = cred.type
             data = cred.type == "secretText" ? { text = try(cred.secretValue, "") } : {
               username = try(cred.username, "")
-              password = try(cred.password, "")
+              password = try(cred.password, cred.secretValue, "")
             }
           }
         ]
