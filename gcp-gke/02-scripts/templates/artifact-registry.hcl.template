@@ -13,7 +13,7 @@ dependency "gke" {
     cluster_name    = "gke-cluster"
     service_account = "mock-sa@developer.gserviceaccount.com"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate"]
 }
 
 locals {
