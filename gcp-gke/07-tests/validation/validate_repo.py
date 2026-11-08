@@ -124,7 +124,7 @@ print("Live-unit/module/dependency paths checked.")
 # Mock outputs may support init/validate, but never a deployment plan.
 for path in list((GKE / "04-live").rglob("terragrunt.hcl")) + list((GKE / "02-scripts/templates").glob("*.template")):
     content = path.read_text(encoding="utf-8")
-    for allowed in re.findall(r'mock_outputs_allowed_terraform_commands\\s*=\\s*\\[([^]]*)\\]', content):
+    for allowed in re.findall(r'mock_outputs_allowed_terraform_commands\s*=\s*\[([^]]*)\]', content):
         check('"plan"' not in allowed, f"Mock outputs are allowed for plan in {path.relative_to(ROOT)}")
 
 
