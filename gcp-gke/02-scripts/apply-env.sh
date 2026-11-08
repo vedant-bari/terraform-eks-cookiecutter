@@ -35,7 +35,14 @@ cd "$REPO_ROOT"
 [[ "$(git rev-parse HEAD)" == "$M_COMMIT" ]] || { echo "HEAD differs from plan commit ($M_COMMIT); create and review fresh plans." >&2; exit 1; }
 [[ -z "$(git status --porcelain)" ]] || { echo "Refusing to apply with a dirty working tree." >&2; exit 1; }
 
-LAYERS=(01-network 02-gke 03-artifact-registry 04-storage 06-jenkins 07-applications)
+readarray -t LAYERS < <(sed -n 's/^layers=//p' "$MANIFEST" | tr ' ' '\n' | sed '/^$/d')
+[[ ${#LAYERS[@]} -gt 0 ]] || { echo "No layer list in plan manifest" >&2; exit 1; }
+for layer in "${LAYERS[@]}"; do
+  case "$layer" in
+    01-network|02-gke|03-artifact-registry|04-storage|06-jenkins|07-applications) ;;
+    *) echo "Unexpected layer in plan manifest: $layer" >&2; exit 1 ;;
+  esac
+done
 for layer in "${LAYERS[@]}"; do
   plan_file="${PLAN_DIR}/${layer}.tfplan"
   layer_dir="${LIVE_DIR}/${layer}"
