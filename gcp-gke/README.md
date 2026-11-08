@@ -15,7 +15,7 @@ gcp-gke/
 ├── 04-live/                # Terragrunt client/environment entry points
 ├── 05-helm-charts/         # Reusable Helm charts
 ├── 06-examples/            # Infrastructure, application, monitoring examples
-├── 07-tests/               # Test strategy and future automated checks
+├── 07-tests/               # Read-only static validation
 ├── 08-docker/              # Local tooling/container definitions
 └── 17-tmp-backup/          # Historical backup; preserved unchanged
 ```
@@ -87,7 +87,11 @@ Before using a client environment, verify:
 3. Terraform module inputs match the selected environment configuration.
 4. A reviewed Terragrunt plan matches the intended change.
 
-This structural migration has not run `terraform plan`, `terragrunt plan`, or any cloud operation. Run those checks in the intended environment before any future deployment.
+The repository static validation does not run Terraform plans or cloud operations. Use the saved-plan workflow documented in `00-documentation/deployment/GKE_TERRAFORM_DEPLOYMENT_RUNBOOK.md`; do not use `terragrunt run --all apply` as a deployment shortcut.
+
+## Saved-plan workflow
+
+Run the read-only checks with `bash gcp-gke/07-tests/run_tests.sh`. Create plans with `bash gcp-gke/02-scripts/plan-env.sh <client> <environment>`, review every saved plan, then apply only the exact saved plans with `bash gcp-gke/02-scripts/apply-env.sh <client> <environment> --plan-dir <directory> --approve`. For fresh environments, use `--layer` and plan/apply in dependency order so downstream units consume real outputs. Destruction is plan-only by default and requires explicit `--destroy` plus typed confirmation. Bootstrap/state bucket is excluded.
 
 ## Historical documentation
 
