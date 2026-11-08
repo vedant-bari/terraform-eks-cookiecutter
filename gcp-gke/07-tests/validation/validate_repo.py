@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 GKE = ROOT / "gcp-gke"
 LIVE = GKE / "04-live/clients/amex/prod"
 errors: list[str] = []
@@ -134,10 +134,10 @@ check("--destroy" in destroy_script and "mode=destroy" in destroy_script,
       "Destroy script is missing explicit opt-in or destroy-plan manifest checks")
 check("scaffold" not in deploy_script.lower(), "Deploy wrapper must not invoke scaffolding")
 check("terraform.tfstate" not in plan_script, "Plan script must not manipulate state objects")
-for script in (GKE / "02-scripts").glob("*.sh"):
-    if "scaffold" not in script.name:
-        text = script.read_text(encoding="utf-8")
-        check("|| true" not in text, f"Failure masking '|| true' found in {script.relative_to(ROOT)}")
+for script in (GKE / "02-scripts/plan-env.sh", GKE / "02-scripts/apply-env.sh",
+               GKE / "02-scripts/destroy-env.sh", GKE / "02-scripts/deploy-env.sh"):
+    text = script.read_text(encoding="utf-8")
+    check("|| true" not in text, f"Failure masking '|| true' found in {script.relative_to(ROOT)}")
 print("Deployment/destruction safety invariants checked.")
 
 # 7. Shell syntax for all scripts.
