@@ -128,7 +128,7 @@ print("Live-unit/module/dependency paths checked.")
 # Validate source paths in scaffolding templates as well as generated live units.
 for template in (GKE / "02-scripts/templates").glob("*.template"):
     content = template.read_text(encoding="utf-8")
-    for module_path in re.findall(r'source\\s*=\\s*"\\$\\{get_repo_root\\(\\)\\}/([^"]+)"', content):
+    for module_path in re.findall(r'source\s*=\s*"\$\{get_repo_root\(\)\}/([^"]+)"', content):
         check((ROOT / module_path).exists(), f"Missing module source {module_path} in {template.relative_to(ROOT)}")
 
 
