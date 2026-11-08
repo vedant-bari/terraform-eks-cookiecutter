@@ -54,6 +54,20 @@ for path in yaml_files:
         errors.append(f"YAML error in {path.relative_to(ROOT)}: {exc}")
 print(f"YAML files checked: {len(yaml_files)}")
 
+# Cross-file configuration contracts for the retained AMEX test environment.
+try:
+    infra_cfg = parse_yaml(GKE / "01-config/clients/amex/prod/infra/prod.yaml") or {}
+    jenkins_cfg = parse_yaml(GKE / "01-config/clients/amex/prod/jenkins/prod.yaml") or {}
+    infra_sc = (infra_cfg.get("storage") or {}).get("storageClassName")
+    jenkins_sc = ((jenkins_cfg.get("controller") or {}).get("persistence") or {}).get("storageClass")
+    check(bool(infra_sc) and infra_sc == jenkins_sc,
+          f"StorageClass mismatch: infra={infra_sc!r}, Jenkins={jenkins_sc!r}")
+    check(bool((infra_cfg.get("apps") or {}).get("enabled")),
+          "AMEX prod infra config must explicitly enable apps")
+except Exception as exc:
+    errors.append(f"AMEX config contract validation failed: {exc}")
+
+
 # 2. Python syntax without writing __pycache__ files.
 python_files = sorted((GKE / "02-scripts").rglob("*.py"))
 for path in python_files:
@@ -78,6 +92,13 @@ for module_dir in sorted(p for p in (GKE / "03-modules").iterdir() if p.is_dir()
             else:
                 addresses[address] = tf_file
 print("Terraform resource address uniqueness checked.")
+
+# Reusable modules must expose their standard Terraform module contract.
+for module_dir in sorted(p for p in (GKE / "03-modules").iterdir() if p.is_dir()):
+    for required_file in ("main.tf", "variables.tf", "versions.tf"):
+        check((module_dir / required_file).is_file(),
+              f"Module {module_dir.name} is missing {required_file}")
+
 
 # 4. Stable backend key mapping in both root configurations.
 expected = {
@@ -152,6 +173,14 @@ check("--destroy" in destroy_script and "mode=destroy" in destroy_script,
       "Destroy script is missing explicit opt-in or destroy-plan manifest checks")
 check("scaffold" not in deploy_script.lower(), "Deploy wrapper must not invoke scaffolding")
 check("terraform.tfstate" not in plan_script, "Plan script must not manipulate state objects")
+
+check('run -- apply "$plan_file"' in apply_script,
+      "Apply script must apply a saved plan file")
+check("sha256" in apply_script and "read -r -p" in apply_script,
+      "Apply script must verify saved plan integrity and prompt per layer")
+check("run -- apply" not in destroy_script or "--destroy" in destroy_script,
+      "Destroy script must be explicitly opt-in")
+
 for script in (GKE / "02-scripts/plan-env.sh", GKE / "02-scripts/apply-env.sh",
                GKE / "02-scripts/destroy-env.sh", GKE / "02-scripts/deploy-env.sh"):
     text = script.read_text(encoding="utf-8")
@@ -179,6 +208,14 @@ def optional(command: list[str], label: str) -> None:
 optional(["terraform", "fmt", "-check", "-recursive", str(GKE / "03-modules")], "terraform fmt -check")
 optional(["terragrunt", "hcl", "fmt", "--check", "--working-dir", str(LIVE)], "terragrunt hcl fmt --check")
 optional(["helm", "lint", str(GKE / "05-helm-charts/generic-app")], "helm lint")
+
+optional(["helm", "template", "test-backend", str(GKE / "05-helm-charts/generic-app"),
+          "-f", str(GKE / "01-config/clients/amex/prod/apps/backend-web-values.yaml")],
+         "helm template backend")
+optional(["helm", "template", "test-frontend", str(GKE / "05-helm-charts/generic-app"),
+          "-f", str(GKE / "01-config/clients/amex/prod/apps/frontend-web-values.yaml")],
+         "helm template frontend")
+
 
 for warning in warnings:
     print(f"SKIP: {warning}")
