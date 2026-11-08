@@ -82,6 +82,6 @@ for layer in "${LAYERS[@]}"; do
   terragrunt --working-dir "$layer_dir" run -- show -no-color "$plan_file"
   read -r -p "DESTROY resources in $layer using this exact plan? Type 'destroy' to continue: " answer
   [[ "$answer" == destroy ]] || { echo "Destruction stopped at $layer" >&2; exit 1; }
-  terragrunt --working-dir "$layer_dir" run -- apply -input=false "$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- apply "$plan_file"
 done
 echo "Destroy plans applied. Bootstrap/state bucket was not included."
