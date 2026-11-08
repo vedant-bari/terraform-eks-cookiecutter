@@ -52,9 +52,10 @@ if [[ "$DESTROY" == false ]]; then
     [[ -d "$layer_dir" ]] || { echo "Required live layer missing: $layer_dir" >&2; exit 1; }
     plan_file="${PLAN_DIR}/${layer}.tfplan"
     echo "==> Creating destroy plan for $layer"
-    terragrunt run --working-dir "$layer_dir" -- plan -destroy -input=false -out="$plan_file"
+    terragrunt --working-dir "$layer_dir" run -- plan -destroy -input=false -out="$plan_file"
     [[ -s "$plan_file" ]] || { echo "Destroy plan missing: $plan_file" >&2; exit 1; }
     chmod 600 "$plan_file"
+    printf 'sha256.%s=%s\n' "$layer" "$(sha256sum "$plan_file" | cut -d ' ' -f1)" >> "$PLAN_DIR/manifest"
   done
   echo "Destroy plans saved at: $PLAN_DIR"
   echo "Review each plan before using --destroy. No resources were destroyed."
@@ -68,13 +69,19 @@ MANIFEST="${PLAN_DIR}/manifest"
 [[ "$(sed -n 's/^mode=//p' "$MANIFEST")" == destroy ]] || { echo "Manifest is not a destroy plan" >&2; exit 1; }
 [[ "$(sed -n 's/^client=//p' "$MANIFEST")" == "$CLIENT" && "$(sed -n 's/^environment=//p' "$MANIFEST")" == "$ENV" ]] || { echo "Manifest environment mismatch" >&2; exit 1; }
 [[ "$(sed -n 's/^branch=//p' "$MANIFEST")" == "$BRANCH" && "$(sed -n 's/^commit=//p' "$MANIFEST")" == "$COMMIT" ]] || { echo "Branch/commit differs from plan source" >&2; exit 1; }
-for layer in "${LAYERS[@]}"; do [[ -s "${PLAN_DIR}/${layer}.tfplan" ]] || { echo "Missing destroy plan for $layer" >&2; exit 1; }; done
+for layer in "${LAYERS[@]}"; do
+  plan_file="${PLAN_DIR}/${layer}.tfplan"
+  [[ -s "$plan_file" ]] || { echo "Missing destroy plan for $layer" >&2; exit 1; }
+  expected_hash="$(sed -n "s/^sha256.${layer}=//p" "$MANIFEST")"
+  actual_hash="$(sha256sum "$plan_file" | cut -d ' ' -f1)"
+  [[ -n "$expected_hash" && "$expected_hash" == "$actual_hash" ]] || { echo "Destroy plan checksum mismatch for $layer" >&2; exit 1; }
+done
 for layer in "${LAYERS[@]}"; do
   plan_file="${PLAN_DIR}/${layer}.tfplan"; layer_dir="${LIVE_DIR}/${layer}"
   echo "==> Saved destroy plan for $layer:"
-  terragrunt run --working-dir "$layer_dir" -- show -no-color "$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- show -no-color "$plan_file"
   read -r -p "DESTROY resources in $layer using this exact plan? Type 'destroy' to continue: " answer
   [[ "$answer" == destroy ]] || { echo "Destruction stopped at $layer" >&2; exit 1; }
-  terragrunt run --working-dir "$layer_dir" -- apply -input=false "$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- apply -input=false "$plan_file"
 done
 echo "Destroy plans applied. Bootstrap/state bucket was not included."
