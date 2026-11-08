@@ -1,4 +1,4 @@
-Here is a complete, local development README file for your Docker setup. You can save this directly in your repository root as `README.md`.
+This directory provides a local containerized toolchain for the GKE platform repository.
 
 ---
 
