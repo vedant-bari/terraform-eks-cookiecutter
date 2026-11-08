@@ -80,8 +80,10 @@ Navigate to your live client environment path and execute your infrastructure bl
 
 ```bash
 cd gcp-gke/04-live/clients/hdfc-bank/dev
-terragrunt run --all plan
-terragrunt run --all apply
+bash gcp-gke/02-scripts/plan-env.sh <client> <environment>
+
+# Review saved plans, then apply the exact plans:
+bash gcp-gke/02-scripts/apply-env.sh <client> <environment> --plan-dir <plan-directory> --approve
 
 ```
 
