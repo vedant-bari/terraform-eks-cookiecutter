@@ -143,5 +143,5 @@ jenkinsPipeline:
   credentials:
     - id: "backend-web-prod-github-vedant-bari"
       type: "usernamePassword"
-      username: "ghp"     
+      username: "ghp"    
       secretValue: "ghp"
