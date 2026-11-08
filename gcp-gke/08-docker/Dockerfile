@@ -21,14 +21,14 @@ RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.
     apt-get update && apt-get install -y google-cloud-cli && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Terraform (v1.6.6)
+# Install Terraform (v1.15.8)
 ENV TERRAFORM_VERSION=1.15.8
 RUN wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
     unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip && \
     mv terraform /usr/local/bin/ && \
     rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
 
-# Install Terragrunt (v0.55.0)
+# Install Terragrunt (v1.1.2)
 ENV TERRAGRUNT_VERSION=v1.1.2   
 RUN wget -O /usr/local/bin/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 && \
     chmod +x /usr/local/bin/terragrunt
