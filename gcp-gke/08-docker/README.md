@@ -76,10 +76,9 @@ python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/c
 
 ### Running Terragrunt Pipelines
 
-Navigate to your live client environment path and execute your infrastructure blueprint:
+Run these commands from the repository root:
 
 ```bash
-cd gcp-gke/04-live/clients/amex/prod
 bash gcp-gke/02-scripts/plan-env.sh <client> <environment>
 
 # Review saved plans, then apply the exact plans:
