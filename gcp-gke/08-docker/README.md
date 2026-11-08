@@ -1,4 +1,4 @@
-Here is a complete, production-ready `README.md` file for your Docker setup. You can save this directly in your repository root as `README.md`.
+Here is a complete, local development README file for your Docker setup. You can save this directly in your repository root as `README.md`.
 
 ---
 
@@ -70,7 +70,7 @@ gcloud auth list
 Generate client infrastructure layouts or application configurations using the Python automation scripts:
 
 ```bash
-python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/hdfc-bank/dev/infra/dev.yaml
+python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/amex/prod/infra/prod.yaml
 
 ```
 
@@ -79,7 +79,7 @@ python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/c
 Navigate to your live client environment path and execute your infrastructure blueprint:
 
 ```bash
-cd gcp-gke/04-live/clients/hdfc-bank/dev
+cd gcp-gke/04-live/clients/amex/prod
 bash gcp-gke/02-scripts/plan-env.sh <client> <environment>
 
 # Review saved plans, then apply the exact plans:
