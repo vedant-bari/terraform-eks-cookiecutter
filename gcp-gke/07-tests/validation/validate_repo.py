@@ -93,6 +93,20 @@ for module_dir in sorted(p for p in (GKE / "03-modules").iterdir() if p.is_dir()
                 addresses[address] = tf_file
 print("Terraform resource address uniqueness checked.")
 
+# Explicit regression checks for the D1 Jenkins/VPC fixes.
+jenkins_tf = (GKE / "03-modules/10-jenkins/main.tf").read_text(encoding="utf-8")
+check(len(re.findall(r'resource\s+"kubernetes_cluster_role_v1"\s+"jenkins_agent_deployer"\s*\{', jenkins_tf)) == 1,
+      "Jenkins ClusterRole must be declared exactly once")
+check(len(re.findall(r'resource\s+"kubernetes_cluster_role_binding_v1"\s+"jenkins_agent_deployer_binding"\s*\{', jenkins_tf)) == 1,
+      "Jenkins ClusterRoleBinding must be declared exactly once")
+jenkins_yaml_text = (GKE / "01-config/clients/amex/prod/jenkins/prod.yaml").read_text(encoding="utf-8")
+check(jenkins_yaml_text.count('serviceAccountName: "jenkins-agent"') == 1,
+      "Jenkins agent serviceAccountName must be defined only at Pod spec level")
+vpc_outputs = (GKE / "03-modules/02-vpc/outputs.tf").read_text(encoding="utf-8")
+check("value       = module.vpc.subnets_self_links[0]" in vpc_outputs,
+      "VPC subnet_self_link output must use subnets_self_links")
+
+
 # Reusable modules must expose their standard Terraform module contract.
 for module_dir in sorted(p for p in (GKE / "03-modules").iterdir() if p.is_dir()):
     for required_file in ("main.tf", "variables.tf", "versions.tf"):
@@ -178,8 +192,8 @@ check('run -- apply "$plan_file"' in apply_script,
       "Apply script must apply a saved plan file")
 check("sha256" in apply_script and "read -r -p" in apply_script,
       "Apply script must verify saved plan integrity and prompt per layer")
-check("run -- apply" not in destroy_script or "--destroy" in destroy_script,
-      "Destroy script must be explicitly opt-in")
+check('run -- apply "$plan_file"' in destroy_script,
+      "Destroy script must apply a previously saved destroy plan")
 
 for script in (GKE / "02-scripts/plan-env.sh", GKE / "02-scripts/apply-env.sh",
                GKE / "02-scripts/destroy-env.sh", GKE / "02-scripts/deploy-env.sh"):
