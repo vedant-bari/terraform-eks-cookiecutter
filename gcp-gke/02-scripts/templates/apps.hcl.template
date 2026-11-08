@@ -1,4 +1,4 @@
-# gcp-gke/04-live/clients/hdfc-bank/dev/07-applications/terragrunt.hcl
+# Generated live-unit template; paths resolve from the active client/environment directory.
 
 include "root" {
   path   = find_in_parent_folders("root.hcl")
