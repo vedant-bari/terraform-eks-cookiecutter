@@ -40,15 +40,18 @@ for layer in "${LAYERS[@]}"; do
   plan_file="${PLAN_DIR}/${layer}.tfplan"
   layer_dir="${LIVE_DIR}/${layer}"
   [[ -s "$plan_file" && -d "$layer_dir" ]] || { echo "Missing plan or live layer for $layer" >&2; exit 1; }
+  expected_hash="$(sed -n "s/^sha256.${layer}=//p" "$MANIFEST")"
+  actual_hash="$(sha256sum "$plan_file" | cut -d ' ' -f1)"
+  [[ -n "$expected_hash" && "$expected_hash" == "$actual_hash" ]] || { echo "Saved plan checksum mismatch for $layer" >&2; exit 1; }
 done
 
 for layer in "${LAYERS[@]}"; do
   plan_file="${PLAN_DIR}/${layer}.tfplan"
   layer_dir="${LIVE_DIR}/${layer}"
   echo "==> Saved plan for ${CLIENT}/${ENV}/${layer}:"
-  terragrunt run --working-dir "$layer_dir" -- show -no-color "$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- show -no-color "$plan_file"
   read -r -p "Apply this exact saved plan for $layer? Type 'yes' to continue: " answer
   [[ "$answer" == yes ]] || { echo "Stopped before applying $layer. Earlier approved layers, if any, remain applied." >&2; exit 1; }
-  terragrunt run --working-dir "$layer_dir" -- apply -input=false "$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- apply -input=false "$plan_file"
 done
 echo "All saved plans applied successfully."
