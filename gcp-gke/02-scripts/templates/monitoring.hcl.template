@@ -31,7 +31,7 @@ locals {
   env_name    = length(local.path_parts) >= 5 ? local.path_parts[4] : "dev"
 
   # 2. Target path reflecting the environment folder structure for monitoring
-  # e.g., 12-platform-config/clients/hdfc-bank/prod/monitoring-and-logging/prod.yaml
+  # Config path: gcp-gke/01-config/clients/<client>/<environment>/monitoring-and-logging/<environment>.yaml
   monitoring_dir = "${get_repo_root()}/gcp-gke/01-config/clients/${local.client_name}/${local.env_name}/monitoring-and-logging"
   yaml_path      = "${local.monitoring_dir}/${local.env_name}.yaml"
 
