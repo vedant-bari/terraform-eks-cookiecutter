@@ -70,6 +70,6 @@ for layer in "${LAYERS[@]}"; do
   terragrunt --working-dir "$layer_dir" run -- show -no-color "$plan_file"
   read -r -p "Apply this exact saved plan for $layer? Type 'yes' to continue: " answer
   [[ "$answer" == yes ]] || { echo "Stopped before applying $layer. Earlier approved layers, if any, remain applied." >&2; exit 1; }
-  terragrunt --working-dir "$layer_dir" run -- apply -input=false "$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- apply "$plan_file"
 done
 echo "All saved plans applied successfully."
