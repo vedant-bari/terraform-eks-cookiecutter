@@ -37,11 +37,22 @@ cd "$REPO_ROOT"
 
 readarray -t LAYERS < <(sed -n 's/^layers=//p' "$MANIFEST" | tr ' ' '\n' | sed '/^$/d')
 [[ ${#LAYERS[@]} -gt 0 ]] || { echo "No layer list in plan manifest" >&2; exit 1; }
+PREVIOUS_INDEX=-1
 for layer in "${LAYERS[@]}"; do
   case "$layer" in
-    01-network|02-gke|03-artifact-registry|04-storage|06-jenkins|07-applications) ;;
+    01-network) CURRENT_INDEX=0 ;;
+    02-gke) CURRENT_INDEX=1 ;;
+    03-artifact-registry) CURRENT_INDEX=2 ;;
+    04-storage) CURRENT_INDEX=3 ;;
+    06-jenkins) CURRENT_INDEX=4 ;;
+    07-applications) CURRENT_INDEX=5 ;;
     *) echo "Unexpected layer in plan manifest: $layer" >&2; exit 1 ;;
   esac
+  if (( CURRENT_INDEX <= PREVIOUS_INDEX )); then
+    echo "Plan manifest layers are duplicated or out of dependency order." >&2
+    exit 1
+  fi
+  PREVIOUS_INDEX=$CURRENT_INDEX
 done
 for layer in "${LAYERS[@]}"; do
   plan_file="${PLAN_DIR}/${layer}.tfplan"
