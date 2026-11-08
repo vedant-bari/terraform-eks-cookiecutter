@@ -24,7 +24,7 @@ output "subnet_id" {
 }
 
 output "subnet_self_link" {
-  value       = module.vpc.subnets_ids[0] # subnets_ids in the official module holds the full self-link URI
+  value       = module.vpc.subnets_self_links[0]
   description = "The self-link of the created subnetwork."
 }
 
