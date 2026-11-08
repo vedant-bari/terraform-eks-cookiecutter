@@ -17,7 +17,7 @@ dependency "vpc" {
     subnet_name       = "dev-gke-subnet"
     subnet_self_link  = "projects/eks-terraform/regions/asia-south1/subnetworks/dev-gke-subnet"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate"]
 }
 inputs = {
   project_id = include.root.locals.config.gcp.project_id
