@@ -79,9 +79,10 @@ for layer in "${LAYERS[@]}"; do
   [[ -d "$layer_dir" ]] || { echo "Required live layer missing: $layer_dir" >&2; exit 1; }
   plan_file="${PLAN_DIR}/${layer}.tfplan"
   echo "==> Planning ${CLIENT}/${ENV}/${layer}"
-  terragrunt run --working-dir "$layer_dir" -- plan -input=false -out="$plan_file"
+  terragrunt --working-dir "$layer_dir" run -- plan -input=false -out="$plan_file"
   [[ -s "$plan_file" ]] || { echo "Plan file was not created: $plan_file" >&2; exit 1; }
   chmod 600 "$plan_file"
+  printf 'sha256.%s=%s\n' "$layer" "$(sha256sum "$plan_file" | cut -d ' ' -f1)" >> "$MANIFEST"
 done
 
 echo
