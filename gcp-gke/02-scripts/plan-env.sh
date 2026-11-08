@@ -5,16 +5,18 @@ umask 077
 
 usage() {
   cat <<'USAGE'
-Usage: plan-env.sh <client> <environment> [--plan-dir <directory>]
+Usage: plan-env.sh <client> <environment> [--layer <live-layer>] [--plan-dir <directory>]
 Creates one saved plan per active live layer. Does not scaffold, import, or apply.
 USAGE
 }
 [[ $# -ge 2 ]] || { usage >&2; exit 2; }
 CLIENT=$1; ENV=$2; shift 2
 PLAN_DIR=""
+SELECTED_LAYER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --plan-dir) [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }; PLAN_DIR=$2; shift 2 ;;
+    --layer) [[ $# -ge 2 ]] || { echo "--layer requires a value" >&2; exit 2; }; SELECTED_LAYER=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -67,6 +69,12 @@ chmod 700 "$PLAN_DIR"
 # Bootstrap is intentionally excluded: the GCS backend must exist before init.
 # Its resource ownership/import is a separate, explicitly approved operation.
 LAYERS=(01-network 02-gke 03-artifact-registry 04-storage 06-jenkins 07-applications)
+if [[ -n "$SELECTED_LAYER" ]]; then
+  case "$SELECTED_LAYER" in
+    01-network|02-gke|03-artifact-registry|04-storage|06-jenkins|07-applications) LAYERS=("$SELECTED_LAYER") ;;
+    *) echo "Unknown or non-deployable layer: $SELECTED_LAYER" >&2; exit 2 ;;
+  esac
+fi
 MANIFEST="${PLAN_DIR}/manifest"
 {
   printf 'mode=plan\nclient=%s\nenvironment=%s\nbranch=%s\ncommit=%s\n' "$CLIENT" "$ENV" "$BRANCH" "$COMMIT"
