@@ -121,6 +121,13 @@ for layer in expected_live:
                   f"Broken dependency path {dep} in {hcl.relative_to(ROOT)}")
 print("Live-unit/module/dependency paths checked.")
 
+# Mock outputs may support init/validate, but never a deployment plan.
+for path in list((GKE / "04-live").rglob("terragrunt.hcl")) + list((GKE / "02-scripts/templates").glob("*.template")):
+    content = path.read_text(encoding="utf-8")
+    for allowed in re.findall(r'mock_outputs_allowed_terraform_commands\\s*=\\s*\\[([^]]*)\\]', content):
+        check('"plan"' not in allowed, f"Mock outputs are allowed for plan in {path.relative_to(ROOT)}")
+
+
 # 6. Orchestration safety invariants.
 plan_script = (GKE / "02-scripts/plan-env.sh").read_text(encoding="utf-8")
 apply_script = (GKE / "02-scripts/apply-env.sh").read_text(encoding="utf-8")
