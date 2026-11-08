@@ -122,7 +122,6 @@ controller:
 
                           - name: docker-dind
                             image: docker:27-dind
-                            serviceAccountName: "jenkins-agent"
                             securityContext:
                               privileged: true
                             command:
@@ -144,7 +143,6 @@ controller:
                                 mountPath: /workspace
 
                           - name: gcloud
-                            serviceAccountName: "jenkins-agent"
                             image: gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
                             command:
                               - cat
