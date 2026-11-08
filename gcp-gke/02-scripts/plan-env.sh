@@ -96,7 +96,7 @@ done
 echo
 echo "Saved plans created. Review each with:"
 for layer in "${LAYERS[@]}"; do
-  printf '  terragrunt run --working-dir "%s/%s" -- show "%s/%s.tfplan"\n' "$LIVE_DIR" "$layer" "$PLAN_DIR" "$layer"
+  printf '  terragrunt --working-dir "%s/%s" run -- show -no-color "%s/%s.tfplan"\n' "$LIVE_DIR" "$layer" "$PLAN_DIR" "$layer"
 done
 echo
 echo "Plan directory: $PLAN_DIR"
