@@ -85,12 +85,12 @@ install -d -m 700 /tmp/amex-prod-plans
 bash gcp-gke/02-scripts/plan-env.sh amex prod --plan-dir /tmp/amex-prod-plans
 ```
 
-The selected directory must be empty. The script records client, environment, branch, commit, and layer order in a manifest; saved plans are created with restrictive permissions. The plan set excludes bootstrap.
+The selected directory must be empty. The script records client, environment, branch, commit, and layer order in a manifest; saved plans are created with restrictive permissions. The plan set excludes bootstrap. If this is a fresh deployment and downstream dependency state does not yet exist, plan and apply one layer at a time so each next layer consumes real outputs from the preceding applied layer. Start with `--layer 01-network`, review and apply that saved plan, then repeat for `02-gke` and continue in dependency order. A full-stack plan is appropriate only when every required dependency has real state outputs.
 
 Review every plan file. Example:
 
 ```bash
-terragrunt run --working-dir gcp-gke/04-live/clients/amex/prod/01-network -- show -no-color /tmp/amex-prod-plans/01-network.tfplan
+terragrunt --working-dir gcp-gke/04-live/clients/amex/prod/01-network run -- show -no-color /tmp/amex-prod-plans/01-network.tfplan
 ```
 
 Inspect changes, replacements, deletions, IAM changes, network changes, GKE version/node-pool changes, and storage/registry changes. A plan that relies on mocks is not deployable evidence. Resolve mock-only dependencies before any approval to apply.
