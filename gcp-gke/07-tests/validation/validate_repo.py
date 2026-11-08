@@ -110,6 +110,10 @@ for layer in expected_live:
     if not hcl.is_file():
         continue
     content = hcl.read_text(encoding="utf-8")
+    ancestors = [hcl.parent, *hcl.parent.parents]
+    check(any((ancestor / "root.hcl").is_file() for ancestor in ancestors),
+          f"No discoverable root.hcl for {hcl.relative_to(ROOT)}")
+
     for module_path in re.findall(r'source\s*=\s*"\$\{get_repo_root\(\)\}/([^"]+)"', content):
         check((ROOT / module_path).exists(), f"Missing module source {module_path} referenced by {hcl.relative_to(ROOT)}")
     for dep in re.findall(r'config_path\s*=\s*"([^"]+)"', content):
@@ -120,6 +124,13 @@ for layer in expected_live:
             check((hcl.parent / dep / "terragrunt.hcl").is_file(),
                   f"Broken dependency path {dep} in {hcl.relative_to(ROOT)}")
 print("Live-unit/module/dependency paths checked.")
+
+# Validate source paths in scaffolding templates as well as generated live units.
+for template in (GKE / "02-scripts/templates").glob("*.template"):
+    content = template.read_text(encoding="utf-8")
+    for module_path in re.findall(r'source\\s*=\\s*"\\$\\{get_repo_root\\(\\)\\}/([^"]+)"', content):
+        check((ROOT / module_path).exists(), f"Missing module source {module_path} in {template.relative_to(ROOT)}")
+
 
 # Mock outputs may support init/validate, but never a deployment plan.
 for path in list((GKE / "04-live").rglob("terragrunt.hcl")) + list((GKE / "02-scripts/templates").glob("*.template")):
