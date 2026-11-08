@@ -29,7 +29,8 @@ locals {
     storage   = try(local.yaml_data.storage, {})
   }
 
-  # Stable logical state identity; folder renames do not change backend keys.
+  # Stable logical state identity; preserve these keys across live-directory renames.
+  # See 00-documentation/deployment/STATE_LAYOUT_MIGRATION.md before changing this map.
   layer_name = local.path_parts[length(local.path_parts) - 1]
   state_layer_keys = {
     "00-bootstrap"         = "bootstrap"
