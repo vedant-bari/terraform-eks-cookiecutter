@@ -145,7 +145,19 @@ The bootstrap Terraform module declares `google_storage_bucket.tf_state`, but re
 - Never suppress import errors or assume an import succeeded.
 - Keep bucket versioning and `prevent_destroy` safeguards enabled.
 
-## 10. Validation evidence and limitations
+## 10. Outstanding security review before any real deployment
+
+The D1-D4 code pass does not certify the retained application stack as production-ready. Resolve these findings in a separate security-hardening change before using the configuration outside isolated testing:
+
+- Jenkins admin credentials are still hardcoded in the Jenkins values YAML/JCasC. Replace them with a required secret input sourced from an approved secret manager; rotate any credential that may have been used.
+- The Jenkins Docker-in-Docker agent uses privileged mode and an unauthenticated TCP Docker daemon on port 2375. Reassess the build isolation model and remove this exposure where possible.
+- Review the project-wide Artifact Registry writer grant and cluster-wide Jenkins deployment RBAC; narrow permissions to the required repository, namespaces, and verbs.
+- Review application database/JWT fallback secrets and Terraform-managed Secret Manager secret versions. Terraform state and saved plans may contain secret material; ensure backend access, encryption, retention, and secret injection are appropriate.
+- Review ingress hostnames/TLS, image tag pinning, and persistent log/storage settings before any internet-facing or production deployment.
+
+These are follow-up security findings, not changes silently included in this branch. Do not interpret a passing static test or reviewed Terraform plan as approval to deploy them.
+
+## 11. Validation evidence and limitations
 
 Capture:
 - Git branch and commit SHA.
