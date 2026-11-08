@@ -88,9 +88,9 @@ git branch --show-current
 git rev-parse HEAD
 ```
 
-Expected branch: `issue-fixes-GCP-GKE-cluster`.
+Use the explicitly approved review/deployment branch for the task; do not assume a fixed branch name. Record the branch and commit SHA in the validation log.
 
-Do not continue with uncommitted changes unless they are understood and intentionally part of the validation. Record the commit SHA in the validation log.
+Do not continue with uncommitted changes unless they are understood and intentionally part of the validation. The saved-plan scripts require a clean working tree and bind plans to the branch and commit that produced them.
 
 ### 3.2 Confirm tool versions
 
@@ -413,7 +413,7 @@ After each approved layer deployment:
 | Provider/module download fails | Check network, registry access, and version constraints. Do not delete lock files or change versions without review. |
 | State lock present | Identify the active operation and lock owner. Never force-unlock until stale-lock status is independently established and approved. |
 
-## 10. Current execution record (2026-11-04)
+## 10. Current execution record (2026-11-08)
 
 This section is a snapshot of the work in progress. Update it as commands are run and reviewed.
 
@@ -467,3 +467,95 @@ Do not include secrets, access tokens, private keys, or unredacted sensitive pla
 ---
 
 **Change policy:** Keep this runbook synchronized with the actual repository and observed execution results. Mark a step complete only after its command output has been reviewed. Record deviations and decisions rather than silently changing the procedure.
+
+## 12. Saved-plan orchestration (D1/D2 workflow)
+
+The orchestration scripts are deliberately split by responsibility. They do not create or import the remote-state bucket, and they exclude the bootstrap layer from the ordinary deployment and teardown sequences. The GCS backend bucket must already exist and its Terraform ownership must be reconciled separately before the affected bootstrap state is considered deployable.
+
+### 12.1 Generate scaffolding only when explicitly requested
+
+Scaffolding writes Terragrunt files from the YAML configuration and templates. It is no longer part of deployment planning or applying.
+
+From the repository root:
+
+```bash
+bash gcp-gke/02-scripts/scaffold-env.sh amex prod --write
+git diff -- gcp-gke/04-live/clients/amex/prod
+```
+
+Review every generated change. Do not assume the generator output is safe merely because the command completed.
+
+### 12.2 Create saved deployment plans
+
+The plan workflow is read/plan-only: it does not scaffold, import state, create the backend bucket, or apply resources.
+
+```bash
+bash gcp-gke/02-scripts/plan-env.sh amex prod
+```
+
+The script creates a unique directory under `/tmp` (or `$TMPDIR`) and prints its path. To choose a directory outside the repository:
+
+```bash
+bash gcp-gke/02-scripts/plan-env.sh amex prod --plan-dir /secure/path/amex-prod-plans
+```
+
+The directory must be empty. It is created with restrictive permissions; saved plan files and the manifest are mode 0600. Treat plans as sensitive artifacts because they can contain secret values. Never commit or publish them.
+
+The manifest records the operation, client, environment, branch, commit, and creation time. The script requires a clean working tree and a named branch. It plans these units in dependency order:
+
+1. `01-network`
+2. `02-gke`
+3. `03-artifact-registry`
+4. `04-storage`
+5. `06-jenkins`
+6. `07-applications`
+
+The bootstrap unit is intentionally excluded. Do not bypass this exclusion by manually importing the bucket or applying a bootstrap plan without a separately reviewed state-ownership procedure.
+
+Review each saved plan using the matching live unit directory and the installed Terragrunt version's supported show command. A plan is not approved merely because it was generated successfully.
+
+### 12.3 Apply only the reviewed saved plans
+
+Applying requires the same branch and commit that produced the plans, a clean working tree, the plan directory, and an explicit approval flag. The script also requires a typed confirmation for every layer.
+
+```bash
+bash gcp-gke/02-scripts/apply-env.sh amex prod \\
+  --plan-dir /secure/path/amex-prod-plans \\
+  --approve
+```
+
+The script initializes each live unit and applies the exact saved plan file. It does not regenerate plans. If the branch/commit differs, a plan is missing, or Terraform detects stale state, stop and generate/review a fresh plan set. Approval is per layer; if a later layer is declined or fails, earlier applied layers are not automatically rolled back.
+
+`deploy-env.sh` remains as a compatibility entry point, but it is plan-only and delegates to `plan-env.sh`. It cannot apply resources.
+
+### 12.4 Destroy is opt-in and uses saved destroy plans
+
+The default destroy command creates destroy plans only:
+
+```bash
+bash gcp-gke/02-scripts/destroy-env.sh amex prod
+```
+
+It prints the plan directory. Review every destroy plan before proceeding. Actual destruction requires all three of `--destroy`, `--plan-dir`, and `--approve`, plus a typed per-layer confirmation:
+
+```bash
+bash gcp-gke/02-scripts/destroy-env.sh amex prod \\
+  --destroy \\
+  --plan-dir /secure/path/amex-prod-destroy-plans \\
+  --approve
+```
+
+The destroy workflow applies the saved destroy plans in reverse dependency order. It never regenerates them during destruction. The bootstrap layer and remote-state bucket are excluded intentionally. If the plan set is stale or the branch/commit changed, stop and regenerate/re-review the destroy plans.
+
+### 12.5 Script safety boundaries
+
+- Unknown command-line options are errors; they are not silently ignored.
+- Planning and applying do not invoke scaffolding.
+- No orchestration script runs `terragrunt import`.
+- Applying requires explicit `--approve` and per-layer typed confirmation.
+- Destruction is never the default action.
+- Saved plans are stored outside the repository and protected with restrictive file permissions.
+- The plan/apply scripts require the same branch and commit; do not switch branches or edit configuration between those stages.
+- No script performs `terraform apply`, `terragrunt apply`, or destroy automatically as a side effect of planning.
+- These scripts have not been executed against GCP as part of this code change. Run shell syntax checks and review the script diff locally before using them.
+
