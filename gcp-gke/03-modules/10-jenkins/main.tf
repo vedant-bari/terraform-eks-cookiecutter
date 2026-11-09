@@ -133,3 +133,4 @@ resource "kubernetes_cluster_role_binding_v1" "jenkins_agent_deployer_binding" {
     namespace = kubernetes_namespace_v1.jenkins.metadata[0].name
   }
 }
+
