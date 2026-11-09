@@ -121,7 +121,8 @@ controller:
                                 mountPath: /workspace
 
                           - name: docker-dind
-                            image: docker:27-dind                            securityContext:
+                            image: docker:27-dind                            
+                            securityContext:
                               privileged: true
                             command:
                               - dockerd
