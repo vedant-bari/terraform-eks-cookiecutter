@@ -7,12 +7,25 @@ CLIENT=$1; ENV=$2; shift 2
 PLAN_DIR=""; APPROVE=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --plan-dir) [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }; PLAN_DIR=$2; shift 2 ;;
-    --approve) APPROVE=true ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+    --plan-dir)
+      [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }
+      PLAN_DIR=$2
+      shift 2
+      ;;
+    --approve)
+      APPROVE=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
   esac
-  shift
 done
 [[ "$APPROVE" == true ]] || { echo "Explicit --approve is required; each layer will still prompt for confirmation." >&2; exit 2; }
 [[ -n "$PLAN_DIR" && -d "$PLAN_DIR" ]] || { echo "A valid --plan-dir is required" >&2; exit 2; }
