@@ -1,5 +1,5 @@
 variable "observability_config" {
-  description = "Unified map containing configuration for monitoring, loki, and alloy"
+  description = "Unified Helm values for Prometheus/Grafana/Alertmanager, Loki, Alloy, Tempo and chart versions"
   type        = any
 }
 
