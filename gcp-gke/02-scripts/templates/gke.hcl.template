@@ -14,7 +14,7 @@ dependency "vpc" {
     network_name = "client-a-dev-vpc"
     subnet_name  = "dev-gke-subnet"
   }
-  mock_outputs_allowed_terraform_commands = ["init", "validate", "plan"]
+  mock_outputs_allowed_terraform_commands = ["init", "validate"]
 }
 
 inputs = {

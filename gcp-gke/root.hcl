@@ -1,3 +1,6 @@
+# Legacy root retained for historical/archive compatibility only.
+# Active live units under 04-live must resolve 04-live/root.hcl.
+# Preserve the stable state key mapping; see 00-documentation/deployment/STATE_LAYOUT_MIGRATION.md.
 locals {
   # 1. Dynamically extract client name and environment from the path structure
   path_parts  = split("/", get_path_from_repo_root())

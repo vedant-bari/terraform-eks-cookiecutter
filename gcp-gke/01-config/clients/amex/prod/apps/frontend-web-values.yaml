@@ -1,5 +1,5 @@
 apps:
-  enabled: false
+  enabled: true
 client:
   name: "amex"
 environment: "prod"

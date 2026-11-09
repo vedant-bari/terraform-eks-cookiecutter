@@ -1,4 +1,4 @@
-Here is a complete, production-ready `README.md` file for your Docker setup. You can save this directly in your repository root as `README.md`.
+This directory provides a local containerized toolchain for the GKE platform repository.
 
 ---
 
@@ -70,18 +70,19 @@ gcloud auth list
 Generate client infrastructure layouts or application configurations using the Python automation scripts:
 
 ```bash
-python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/hdfc-bank/dev/infra/dev.yaml
+python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py gcp-gke/01-config/clients/amex/prod/infra/prod.yaml
 
 ```
 
 ### Running Terragrunt Pipelines
 
-Navigate to your live client environment path and execute your infrastructure blueprint:
+Run these commands from the repository root:
 
 ```bash
-cd gcp-gke/04-live/clients/hdfc-bank/dev
-terragrunt run --all plan
-terragrunt run --all apply
+bash gcp-gke/02-scripts/plan-env.sh <client> <environment>
+
+# Review saved plans, then apply the exact plans:
+bash gcp-gke/02-scripts/apply-env.sh <client> <environment> --plan-dir <plan-directory> --approve
 
 ```
 

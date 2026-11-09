@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Apply only previously saved plans after explicit per-layer confirmation.
+set -Eeuo pipefail
+usage() { echo "Usage: apply-env.sh <client> <environment> --plan-dir <directory> --approve"; }
+[[ $# -ge 2 ]] || { usage >&2; exit 2; }
+CLIENT=$1; ENV=$2; shift 2
+PLAN_DIR=""; APPROVE=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --plan-dir)
+      [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }
+      PLAN_DIR=$2; shift 2 ;;
+    --approve) APPROVE=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+[[ "$APPROVE" == true ]] || { echo "Explicit --approve is required; each layer will still prompt for confirmation." >&2; exit 2; }
+[[ -n "$PLAN_DIR" && -d "$PLAN_DIR" ]] || { echo "A valid --plan-dir is required" >&2; exit 2; }
+PLAN_DIR="$(cd "$PLAN_DIR" && pwd)"
+MANIFEST="${PLAN_DIR}/manifest"
+[[ -f "$MANIFEST" ]] || { echo "Plan manifest missing: $MANIFEST" >&2; exit 1; }
+MODE="$(sed -n 's/^mode=//p' "$MANIFEST")"
+M_CLIENT="$(sed -n 's/^client=//p' "$MANIFEST")"
+M_ENV="$(sed -n 's/^environment=//p' "$MANIFEST")"
+M_BRANCH="$(sed -n 's/^branch=//p' "$MANIFEST")"
+M_COMMIT="$(sed -n 's/^commit=//p' "$MANIFEST")"
+[[ "$MODE" == plan && "$M_CLIENT" == "$CLIENT" && "$M_ENV" == "$ENV" ]] || { echo "Manifest does not match requested client/environment or plan type" >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+LIVE_DIR="${REPO_ROOT}/gcp-gke/04-live/clients/${CLIENT}/${ENV}"
+cd "$REPO_ROOT"
+[[ "$(git branch --show-current)" == "$M_BRANCH" ]] || { echo "Current branch differs from plan branch ($M_BRANCH)" >&2; exit 1; }
+[[ "$(git rev-parse HEAD)" == "$M_COMMIT" ]] || { echo "HEAD differs from plan commit ($M_COMMIT); create and review fresh plans." >&2; exit 1; }
+[[ -z "$(git status --porcelain)" ]] || { echo "Refusing to apply with a dirty working tree." >&2; exit 1; }
+
+readarray -t LAYERS < <(sed -n 's/^layers=//p' "$MANIFEST" | tr ' ' '\n' | sed '/^$/d')
+[[ ${#LAYERS[@]} -gt 0 ]] || { echo "No layer list in plan manifest" >&2; exit 1; }
+PREVIOUS_INDEX=-1
+for layer in "${LAYERS[@]}"; do
+  case "$layer" in
+    01-network) CURRENT_INDEX=0 ;;
+    02-gke) CURRENT_INDEX=1 ;;
+    03-artifact-registry) CURRENT_INDEX=2 ;;
+    04-storage) CURRENT_INDEX=3 ;;
+    05-monitoring) CURRENT_INDEX=4 ;;
+    06-jenkins) CURRENT_INDEX=5 ;;
+    07-applications) CURRENT_INDEX=6 ;;
+    *) echo "Unexpected layer in plan manifest: $layer" >&2; exit 1 ;;
+  esac
+  if (( CURRENT_INDEX <= PREVIOUS_INDEX )); then
+    echo "Plan manifest layers are duplicated or out of dependency order." >&2; exit 1
+  fi
+  PREVIOUS_INDEX=$CURRENT_INDEX
+done
+for layer in "${LAYERS[@]}"; do
+  plan_file="${PLAN_DIR}/${layer}.tfplan"
+  layer_dir="${LIVE_DIR}/${layer}"
+  [[ -s "$plan_file" && -d "$layer_dir" ]] || { echo "Missing plan or live layer for $layer" >&2; exit 1; }
+  expected_hash="$(sed -n "s/^sha256.${layer}=//p" "$MANIFEST")"
+  actual_hash="$(sha256sum "$plan_file" | cut -d ' ' -f1)"
+  [[ -n "$expected_hash" && "$expected_hash" == "$actual_hash" ]] || { echo "Saved plan checksum mismatch for $layer" >&2; exit 1; }
+done
+
+for layer in "${LAYERS[@]}"; do
+  plan_file="${PLAN_DIR}/${layer}.tfplan"
+  layer_dir="${LIVE_DIR}/${layer}"
+  echo "==> Saved plan for ${CLIENT}/${ENV}/${layer}:"
+  terragrunt --working-dir "$layer_dir" run -- show -no-color "$plan_file"
+  read -r -p "Apply this exact saved plan for $layer? Type 'yes' to continue: " answer
+  [[ "$answer" == yes ]] || { echo "Stopped before applying $layer. Earlier approved layers, if any, remain applied." >&2; exit 1; }
+  terragrunt --working-dir "$layer_dir" run -- apply "$plan_file"
+done
+echo "All saved plans applied successfully."
