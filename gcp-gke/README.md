@@ -48,7 +48,7 @@ Environment configuration is stored under:
 └── jenkins/
 ```
 
-Keep credentials out of committed YAML. The monitoring stack expects the `monitoring` namespace plus `grafana-admin-credentials` and `alertmanager-webhook` Kubernetes Secrets to be provisioned before planning/applying. Their values are not managed by Terraform and must be injected securely. See the deployment runbook for the exact preflight and verification steps.
+The monitoring module creates the `monitoring` namespace and the `grafana-admin-credentials` / `alertmanager-webhook` Kubernetes Secrets. The environment YAML stores the Grafana username, Secret names/keys, and names of required environment variables; actual password and webhook URL values are supplied at runtime. Do not commit secret values. Terraform state contains Kubernetes Secret data, so restrict access to the encrypted GCS state bucket and saved plans. See the deployment runbook for the exact workflow.
 
 ## Terraform state identity
 
