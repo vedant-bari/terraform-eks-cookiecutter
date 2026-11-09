@@ -17,23 +17,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --plan-dir)
       [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }
-      PLAN_DIR=$2
-      shift 2
-      ;;
+      PLAN_DIR=$2; shift 2 ;;
     --layer)
       [[ $# -ge 2 ]] || { echo "--layer requires a value" >&2; exit 2; }
-      SELECTED_LAYER=$2
-      shift 2
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown argument: $1" >&2
-      usage >&2
-      exit 2
-      ;;
+      SELECTED_LAYER=$2; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
@@ -49,10 +38,7 @@ cd "$REPO_ROOT"
 BRANCH="$(git branch --show-current)"
 COMMIT="$(git rev-parse HEAD)"
 [[ -n "$BRANCH" && -n "$COMMIT" ]] || { echo "Unable to identify Git branch/commit" >&2; exit 1; }
-if [[ -n "$(git status --porcelain)" ]]; then
-  echo "Refusing to plan from a dirty working tree. Commit or stash changes first." >&2
-  exit 1
-fi
+[[ -z "$(git status --porcelain)" ]] || { echo "Refusing to plan from a dirty working tree." >&2; exit 1; }
 
 readarray -t CFG < <(python3 - "$CONFIG_FILE" <<'PY'
 import sys, yaml
@@ -76,16 +62,14 @@ else
   [[ -z "$(find "$PLAN_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]] || {
     echo "Plan directory must be empty: $PLAN_DIR" >&2; exit 1;
   }
-  chmod 700 "$PLAN_DIR"
 fi
 chmod 700 "$PLAN_DIR"
 
 # Bootstrap is intentionally excluded: the GCS backend must exist before init.
-# Its resource ownership/import is a separate, explicitly approved operation.
-LAYERS=(01-network 02-gke 03-artifact-registry 04-storage 06-jenkins 07-applications)
+LAYERS=(01-network 02-gke 03-artifact-registry 04-storage 05-monitoring 06-jenkins 07-applications)
 if [[ -n "$SELECTED_LAYER" ]]; then
   case "$SELECTED_LAYER" in
-    01-network|02-gke|03-artifact-registry|04-storage|06-jenkins|07-applications) LAYERS=("$SELECTED_LAYER") ;;
+    01-network|02-gke|03-artifact-registry|04-storage|05-monitoring|06-jenkins|07-applications) LAYERS=("$SELECTED_LAYER") ;;
     *) echo "Unknown or non-deployable layer: $SELECTED_LAYER" >&2; exit 2 ;;
   esac
 fi
