@@ -249,3 +249,6 @@ tempo:
     size: 20Gi
   service:
     type: ClusterIP
+  serviceMonitor:
+    enabled: true
+    interval: 30s
