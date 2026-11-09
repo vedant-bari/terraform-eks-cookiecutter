@@ -108,26 +108,24 @@ The monitoring module consumes the GKE cluster outputs and uses the existing `st
 
 This is a small-cluster/test configuration: one replica for each stateful component, local PVC-backed Loki/Tempo storage and seven-day retention. It is not an HA or long-term archival design.
 
-Create the namespace and Kubernetes secrets before planning. This is an explicit cluster preflight and keeps credentials out of Terraform state:
+The monitoring module manages the `monitoring` namespace and creates both Kubernetes Secrets before installing Helm releases. No manual namespace or Secret creation is required.
+
+The environment file `01-config/clients/amex/prod/monitoring-and-logging/prod.yaml` defines:
+- Grafana administrator username, Secret name and key names.
+- Environment-variable name for the Grafana password (`GRAFANA_ADMIN_PASSWORD`).
+- Alertmanager Secret name/key and environment-variable name (`ALERTMANAGER_WEBHOOK_URL`).
+
+Keep the actual secret values out of Git. Export them in the same terminal session used for planning and applying:
 
 ```bash
-kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+read -rsp "Grafana admin password (12+ characters): " GRAFANA_ADMIN_PASSWORD; echo
+export GRAFANA_ADMIN_PASSWORD
 
-read -rsp "Grafana admin password: " GRAFANA_PASSWORD; echo
-kubectl create secret generic grafana-admin-credentials -n monitoring \\
-  --from-literal=admin-user=admin \\
-  --from-literal=admin-password="$GRAFANA_PASSWORD" \\
-  --dry-run=client -o yaml | kubectl apply -f -
-unset GRAFANA_PASSWORD
-
-read -rsp "Alertmanager webhook URL: " ALERT_WEBHOOK_URL; echo
-kubectl create secret generic alertmanager-webhook -n monitoring \\
-  --from-literal=webhook_url="$ALERT_WEBHOOK_URL" \\
-  --dry-run=client -o yaml | kubectl apply -f -
-unset ALERT_WEBHOOK_URL
+read -rsp "Alertmanager webhook URL: " ALERTMANAGER_WEBHOOK_URL; echo
+export ALERTMANAGER_WEBHOOK_URL
 ```
 
-Use a receiver URL supported by your notification service. Do not commit credentials or paste them into Terraform variables. The monitoring module reads the existing namespace and secrets; it does not manage their secret values.
+The module writes these values into Kubernetes Secrets. **Terraform state will contain the Secret data even though the variables are marked sensitive.** Protect the GCS state bucket with least-privilege IAM, encryption and appropriate retention; keep saved plan files private. For environments where state operators must not be able to read these credentials, use an external secret manager/External Secrets integration instead of Terraform-managed Kubernetes Secrets.
 
 Validate the repository first:
 
@@ -147,7 +145,7 @@ terragrunt --working-dir gcp-gke/04-live/clients/amex/prod/05-monitoring \\
   run -- show -no-color "$PLAN_DIR/05-monitoring.tfplan"
 ```
 
-Review the saved plan for only the four Helm releases and expected namespace data lookup. Investigate unexpected replacements, public load balancers/ingress, IAM changes, or unrelated infrastructure changes. Apply only after explicit approval:
+Review the saved plan for the namespace, two Kubernetes Secrets and four Helm releases. Confirm no unrelated infrastructure resources are changed. Investigate unexpected replacements, public load balancers/ingress, IAM changes, or unrelated infrastructure changes. Apply only after explicit approval:
 
 ```bash
 bash gcp-gke/02-scripts/apply-env.sh amex prod \\
