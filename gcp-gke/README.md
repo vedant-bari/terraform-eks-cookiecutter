@@ -1,245 +1,100 @@
-# Cloud Platform Kubernetes Blueprint: Operations & Deployment Guide
+# GKE Platform Blueprint
 
-This repository contains a production-grade, modular Infrastructure-as-Code (IaC) and GitOps-ready platform blueprint using **Terraform, Terragrunt, GKE, and Helm**. It provisions a cost-optimized R&D environment complete with native **Workload Identity**, **Google Secret Manager CSI integration**, and secure application deployment lifecycles.
+A reusable Google Cloud platform blueprint built with Terraform, Terragrunt, GKE, Helm, and GitOps-oriented deployment patterns.
 
----
+> **Repository status:** The AMEX configuration under `04-live/clients/amex/prod` is a retained test environment. Confirm its actual cloud resources, project and state before operating it. Repository changes do not run Terraform or change cloud resources.
 
-## 1. Architecture Flow & Logic
-
-The platform is built on a decoupled, DRY (Don't Repeat Yourself) design pattern using Terragrunt to pass inputs down to standardized Terraform modules.
-
-### The End-to-End Workflow:
-
-1. **Infrastructure Provisioning (`04-gke`, `08-iam-secrets`):**
-* Terragrunt reads the environment-wide specifications from a centralized `dev.yaml` file.
-* Terraform provisions a GKE cluster with **Workload Identity** and the **Secret Manager CSI Driver add-on** enabled natively.
-* The `iam-secrets` module declares Google Service Accounts (GSAs), binds them to the Kubernetes Service Account (KSA) via Workload Identity, and populates Google Secret Manager with required credentials.
-
-
-2. **Application Deployment (`frontend-web`):**
-* Helm takes a generic application chart and deploys the workload alongside a `SecretProviderClass` template.
-* At runtime, the GKE **Secret Store CSI Driver** (`secrets-store-gke.csi.k8s.io`) intercepts pod startup, authenticates via Workload Identity, fetches secrets directly from Secret Manager, and mounts them as secure in-memory files at `/mnt/secrets/`.
-
-
-
----
-
-## 2. Repository Structure
+## Repository layout
 
 ```text
 gcp-gke/
-├── 01-bootstrap/               # State bucket & base Terraform backend setup
-├── 02-modules/
-│   ├── 04-gke/                 # Reusable GKE cluster module
-│   └── 08-iam-secrets/         # Reusable IAM, Workload Identity, & Secret Manager module
-├── 03-live/
-│   └── clients/
-│       └── client-a/
-│           └── dev/            # Live environment entry points
-│               ├── 04-gke/terragrunt.hcl
-│               └── iam-secrets/terragrunt.hcl
-├── 12-platform-config/
-│   └── clients/
-│       └── client-a/
-│           ├── dev.yaml        # Infrastructure source of truth
-│           └── apps/
-│               └── frontend-web-values.yaml # App-specific values & secrets
-└── 13-helm-charts-app/
-    └── generic-app/            # Universal Helm chart for applications
-
+├── 00-documentation/       # Architecture, deployment, operations, troubleshooting
+├── 01-config/              # Client and environment YAML configuration
+├── 02-scripts/             # Bootstrap, scaffolding, validation, templates
+├── 03-modules/             # Reusable Terraform modules
+├── 04-live/                # Terragrunt client/environment entry points
+├── 05-helm-charts/         # Reusable Helm charts
+├── 06-examples/            # Infrastructure, application, monitoring examples
+├── 07-tests/               # Read-only static validation
+├── 08-docker/              # Local tooling/container definitions
+└── 17-tmp-backup/          # Historical backup; preserved unchanged
 ```
 
----
+## Live environment layout
 
-## 3. Client Configuration Guide (`YAML` Files)
+The retained AMEX test configuration uses the following layer names:
 
-To keep configurations clean, all environment parameters and application secrets are externalized into YAML files.
+| Layer | Purpose |
+|---|---|
+| `00-bootstrap` | Remote state bucket foundation |
+| `01-network` | VPC and subnet resources |
+| `02-gke` | GKE cluster |
+| `03-artifact-registry` | Container image registry |
+| `04-storage` | Storage configuration |
+| `05-monitoring` | Prometheus, Grafana, Alertmanager, Loki, Alloy and Tempo observability stack |
+| `06-jenkins` | Jenkins platform components |
+| `07-applications` | Application workloads |
 
-### A. Infrastructure Configuration (`dev.yaml`)
+The dependency graph, not the numeric prefixes alone, determines execution order. GKE depends on Network; Artifact Registry, Storage, Monitoring and Jenkins consume GKE outputs; Applications depend on GKE, Artifact Registry, and Jenkins. Monitoring is wired as an independent post-GKE layer and is sequenced after Storage by the saved-plan orchestration.
 
-This file dictates the control plane, machine sizing, and cluster add-ons for the client environment.
+## Configuration
 
-**File Location:** `gcp-gke/12-platform-config/clients/client-a/dev.yaml`
+Environment configuration is stored under:
 
-```yaml
-environment: "dev"
-gcpProject: "eks-terraform"
-region: "us-central1"
-
-gke:
-  cluster_name: "gke-client-a-dev"
-  cluster_version: "1.35.6-gke.1710000"
-  release_channel: "REGULAR"
-  machine_type: "e2-medium"             # Cost-optimized 2 vCPU / 4 GB RAM instance
-  node_count: 1                         # Single node for R&D
-  disk_size_gb: 30                      # Minimal disk size
-  enable_autoscaling: true
-  min_nodes: 1
-  max_nodes: 2
-  delete_protection: false
-  enable_filestore_csi: true
-  secretManagerEnabled: true
-  workloadIdentityEnabled: true
-  cluster_addons:
-    http_load_balancing: true
-    horizontal_pod_autoscaling: false
-    gce_csi_driver: true
-
+```text
+01-config/clients/<client>/<environment>/
+├── infra/<environment>.yaml
+├── apps/
+└── jenkins/
 ```
 
-### B. Application Configuration (`frontend-web-values.yaml`)
+The monitoring module creates the `monitoring` namespace and Grafana bootstrap Secret. The environment YAML stores the Grafana username, Secret name/keys, and password environment-variable name; the password is supplied at runtime. Alertmanager is configured with a no-destination receiver by default, so the stack deploys without an external webhook. Add a real notification integration only when a destination (Slack, email, PagerDuty, internal webhook service, etc.) has been selected. Terraform state contains Grafana Secret data, so restrict access to the encrypted GCS state bucket and saved plans. See the deployment runbook for the exact workflow.
 
-This file defines Helm chart values, application workloads, persistence, and the Secret Manager secret mappings.
+## Terraform state identity
 
-**File Location:** `gcp-gke/12-platform-config/clients/client-a/apps/frontend-web-values.yaml`
+Terragrunt state prefixes now use stable logical layer identifiers rather than the physical live-directory name:
 
-```yaml
-gcpProject: "eks-terraform"
-namespace:
-  create: false
-  name: "dev-frontend"
-
-serviceAccount:
-  create: true
-  name: "frontend-web-ksa"
-
-googleServiceAccountName: "frontend-web-gsa"
-
-image:
-  repository: "nginx"
-  tag: "alpine"
-  pullPolicy: "IfNotPresent"
-
-service:
-  targetPort: 80
-
-persistence:
-  enabled: true
-  mountPath: "/usr/share/nginx/html/storage"
-
-secretManager:
-  enabled: true
-  driver: "secrets-store-gke.csi.k8s.io"
-  secrets:
-    - secretId: "prod-db-password"
-      secretValue: "my-super-secret-password-123"
-      key: "DB_PASSWORD"
-    - secretId: "prod-api-key"
-      secretValue: "my-super-secret-api-key-456"
-      key: "API_KEY"
-
+```text
+gcp-gke/<client>/<environment>/<logical-layer>/terraform.tfstate
 ```
 
----
+This avoids changing state identity when a live folder is renamed. The previous path-derived prefix is historical. No state object is moved or deleted by this repository migration; if the old test state still exists in GCS, it remains untouched.
 
-## 4. Step-by-Step Deployment Guide
+## Scaffolding
 
-### Prerequisites
+Scripts are grouped under `02-scripts`:
 
-Ensure you have the following tools installed and authenticated on your local machine:
+- `bootstrap/`: prerequisite and bootstrap utilities
+- `scaffolding/`: client, application, and monitoring layout generators
+- `templates/`: Terragrunt templates used by scaffolding
+- `validation/`: command references and validation helpers
 
-* `gcloud` CLI (authenticated with permissions to manage GCP projects and GKE)
-* `terraform` (v1.5+ recommended)
-* `terragrunt`
-* `kubectl`
-* `helm`
-
----
-
-### Step 1: Initialize Bootstrap Infrastructure
-
-The bootstrap module sets up your remote state storage bucket. *(Note: This is typically run once per cloud account).*
+Example:
 
 ```bash
-cd gcp-gke/01-bootstrap
-terragrunt init
-terragrunt apply
-
+python3 gcp-gke/02-scripts/scaffolding/02-scaffold_client.py \
+  gcp-gke/01-config/clients/<client>/<environment>/infra/<environment>.yaml
 ```
 
----
+Review generated files before running Terragrunt. The scaffolders create configuration files; they do not provision infrastructure.
 
-### Step 2: Deploy Core Infrastructure (GKE & IAM/Secrets)
+## Validation expectations
 
-Navigate to your client's live environment directory to spin up the network, GKE cluster, and Secret Manager configuration.
+Before using a client environment, verify:
 
-```bash
-cd gcp-gke/03-live/clients/client-a/dev
-terragrunt run-all apply
+1. YAML files parse and contain the required client/environment fields.
+2. Terragrunt include paths, module sources, and dependency paths resolve.
+3. Terraform module inputs match the selected environment configuration.
+4. A reviewed Terragrunt plan matches the intended change.
 
-```
+The repository static validation does not run Terraform plans or cloud operations. Use the saved-plan workflow documented in `00-documentation/deployment/GKE_TERRAFORM_DEPLOYMENT_RUNBOOK.md`; do not use `terragrunt run --all apply` as a deployment shortcut.
 
-*Terragrunt will automatically resolve dependencies, initializing the GKE cluster first, ensuring Workload Identity pools and CSI drivers are online, and then provisioning GCP secrets and IAM bindings.*
+## Saved-plan workflow
 
----
+Run the read-only checks with `bash gcp-gke/07-tests/run_tests.sh`. Create plans with `bash gcp-gke/02-scripts/plan-env.sh <client> <environment>`, review every saved plan, then apply only the exact saved plans with `bash gcp-gke/02-scripts/apply-env.sh <client> <environment> --plan-dir <directory> --approve`. For fresh environments, use `--layer` and plan/apply in dependency order so downstream units consume real outputs. Destruction is plan-only by default and requires explicit `--destroy` plus typed confirmation. Bootstrap/state bucket is excluded.
 
-### Step 3: Configure `kubectl` Context
+## Historical documentation
 
-Once the GKE cluster is provisioned, configure your local Kubernetes context to point to your new cluster:
+The open-source observability module is `03-modules/05-monitoring`; its AMEX live entry point is `04-live/clients/amex/prod/05-monitoring`. It reuses the existing Prometheus/Grafana/Loki/Alloy implementation and adds Tempo single-binary tracing for small test workloads. Grafana, Loki and Tempo remain internal-only. Applications must use OpenTelemetry instrumentation and export OTLP to Tempo; deploying the backend alone does not generate application traces.
 
-```bash
-gcloud container clusters get-credentials gke-client-a-dev --region us-central1
-
-```
-
----
-
-### Step 4: Deploy the Application via Helm / Terragrunt
-
-If your application live module is set up alongside your infrastructure directories, apply it:
-
-```bash
-cd gcp-gke/03-live/clients/client-a/dev/apps/frontend-web # (or equivalent app path)
-terragrunt apply
-
-```
-
----
-
-## 5. Validation & Testing
-
-### Verify Secret Mounts Inside the Pod
-
-To confirm that the Secret Store CSI driver has successfully authenticated via Workload Identity and mounted your secrets, execute an in-pod inspection script:
-
-```bash
-kubectl exec -it deploy/frontend-web-generic-app -n dev-frontend -- sh -c '
-  echo "--- Checking Mounted Secrets ---"
-  ls -la /mnt/secrets
-  echo ""
-  echo "--- Reading DB_PASSWORD ---"
-  cat /mnt/secrets/DB_PASSWORD
-'
-
-```
-
----
-
-## 6. Observability & Alerting Recommendations
-
-For enhanced tracing and log-based error alerting (such as capturing 5XX status codes or exceptions) in your GKE cluster:
-
-* **Tracing & APM:** Deploy **SigNoz** via Helm for an open-source, OpenTelemetry-native platform tracking traces, metrics, and logs in a unified UI.
-* **Log-Based Alerting:** Implement **Grafana Loki** paired with **Grafana Alerting**. You can write LogQL queries (e.g., matching error logs or HTTP `5xx` spikes) to trigger notifications directly to Slack or Webhooks.
-
----
-
-## 7. Teardown & Cleanup
-
-To safely tear down your client infrastructure while leaving the foundational `bootstrap` state bucket intact:
-
-1. Navigate to your client's live environment directory:
-```bash
-cd gcp-gke/03-live/clients/client-a/dev
-
-```
-
-
-2. Execute the recursive destroy command:
-```bash
-terragrunt run-all destroy
-
-```
-
-
-*Terragrunt will automatically tear down workloads, Helm releases, GKE node pools, clusters, and IAM configurations in correct reverse dependency order.*
+Operational procedures are retained under `00-documentation`. In particular, review `operations/BOOTSTRAP_DELETION.md` carefully before following it: it contains destructive state-cleanup guidance and is preserved for historical reference, not endorsed as a routine migration step.

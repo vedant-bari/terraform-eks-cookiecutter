@@ -74,3 +74,5 @@ Desktop.ini
 # Ignore previously generated zip files or test artifacts
 *.zip
 client_a_infra_config.zip
+*.tfplan
+.gke-plans/

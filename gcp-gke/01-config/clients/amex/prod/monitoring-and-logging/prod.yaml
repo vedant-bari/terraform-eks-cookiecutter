@@ -1,0 +1,292 @@
+# Open-source observability stack for the AMEX GKE test environment.
+# Grafana is intentionally internal-only; access it through kubectl port-forward.
+# Grafana's bootstrap password is read from the operator environment.
+credentials:
+  grafana:
+    username: admin
+    password_env: GRAFANA_ADMIN_PASSWORD
+    secret_name: grafana-admin-credentials
+    username_key: admin-user
+    password_key: admin-password
+
+# Pin chart versions to keep deployments reproducible across plan/apply runs.
+chart_versions:
+  kube_prometheus_stack: "93.1.0"
+  loki: "7.5.0"
+  alloy: "1.15.0"
+  tempo: "3.2.1"
+
+monitoring:
+  fullnameOverride: monitoring
+  defaultRules:
+    create: true
+  kube-state-metrics:
+    enabled: true
+  prometheus-node-exporter:
+    enabled: true
+  alertmanager:
+    enabled: true
+    config:
+      global:
+        resolve_timeout: 5m
+      route:
+        receiver: "null"
+        group_by: [alertname, namespace]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+      # Alerts remain visible in Prometheus/Alertmanager; external notifications
+      # are opt-in and require a real destination (Slack, email, PagerDuty, etc.).
+      receivers:
+        - name: "null"
+    alertmanagerSpec:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 512Mi
+  grafana:
+    enabled: true
+    replicas: 1
+    defaultDashboardsEnabled: true
+    defaultDashboardsEditable: false
+    defaultDashboardsTimezone: browser
+    admin:
+      existingSecret: grafana-admin-credentials
+      userKey: admin-user
+      passwordKey: admin-password
+    ingress:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    persistence:
+      enabled: true
+      storageClassName: standard-rwo
+      accessModes: [ReadWriteOnce]
+      size: 5Gi
+    additionalDataSources:
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc.cluster.local:3100
+        isDefault: false
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.monitoring.svc.cluster.local:3200
+        isDefault: false
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: 1h
+            spanEndTimeShift: 1h
+            tags: [namespace, pod, container]
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      replicas: 1
+      retention: 7d
+      retentionSize: 8GB
+      scrapeInterval: 30s
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: standard-rwo
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 10Gi
+  additionalPrometheusRulesMap:
+    gke-workload-alerts:
+      groups:
+        - name: gke-workload-health
+          rules:
+            - alert: KubernetesPodCrashLooping
+              expr: max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[5m]) >= 1
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: Pod is crash looping
+                description: 'Pod {{ $labels.namespace }}/{{ $labels.pod }} has been crash looping for more than 5 minutes.'
+            - alert: KubernetesDeploymentReplicasMismatch
+              expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: Deployment has unavailable replicas
+                description: 'Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has fewer available replicas than desired.'
+
+loki:
+  deploymentMode: SingleBinary
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      type: filesystem
+      bucketNames:
+        chunks: loki-chunks
+        ruler: loki-ruler
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: loki_index_
+            period: 24h
+    limits_config:
+      retention_period: 168h
+    compactor:
+      retention_enabled: true
+      delete_request_store: filesystem
+  singleBinary:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    persistence:
+      enabled: true
+      storageClass: standard-rwo
+      accessModes: [ReadWriteOnce]
+      size: 20Gi
+  backend:
+    replicas: 0
+  read:
+    replicas: 0
+  write:
+    replicas: 0
+  chunksCache:
+    enabled: false
+  resultsCache:
+    enabled: false
+
+alloy:
+  fullnameOverride: alloy-logs
+  controller:
+    type: daemonset
+  rbac:
+    create: true
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "pods/log", "namespaces", "events"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["events.k8s.io"]
+        resources: ["events"]
+        verbs: ["get", "list", "watch"]
+  alloy:
+    configMap:
+      content: |-
+        logging {
+          level  = "info"
+          format = "logfmt"
+        }
+
+        discovery.kubernetes "pods" {
+          role = "pod"
+        }
+
+        discovery.relabel "pod_logs" {
+          targets = discovery.kubernetes.pods.targets
+
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label  = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label  = "pod"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_name"]
+            target_label  = "container"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label  = "node"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+            target_label  = "app"
+          }
+        }
+
+        loki.source.kubernetes "pods" {
+          targets    = discovery.relabel.pod_logs.output
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.source.kubernetes_events "cluster_events" {
+          forward_to = [loki.write.default.receiver]
+        }
+
+        loki.write "default" {
+          endpoint {
+            url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+          }
+        }
+
+tempo:
+  replicas: 1
+  tempo:
+    reportingEnabled: false
+    retention: 168h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    server:
+      http_listen_port: 3200
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /var/tempo/traces
+        wal:
+          path: /var/tempo/wal
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+  persistence:
+    enabled: true
+    storageClassName: standard-rwo
+    accessModes: [ReadWriteOnce]
+    size: 20Gi
+  service:
+    type: ClusterIP
+  serviceMonitor:
+    enabled: true
+    interval: 30s
