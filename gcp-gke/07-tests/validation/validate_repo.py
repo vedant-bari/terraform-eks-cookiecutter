@@ -173,10 +173,10 @@ for layer in expected_live:
 
     for module_path in re.findall(r'source\s*=\s*"\$\{get_repo_root\(\)\}/([^"]+)"', content):
         check((ROOT / module_path).exists(), f"Missing module source {module_path} referenced by {hcl.relative_to(ROOT)}")
-    for dep in re.findall(r'config_path\s*=\s*"([^"]+)"', content):
+    for dep in re.findall(r'\bconfig_path\s*=\s*"([^"]+)"', content):
         check((hcl.parent / dep / "terragrunt.hcl").is_file(),
               f"Broken dependency {dep} in {hcl.relative_to(ROOT)}")
-    for dep_block in re.findall(r'paths\s*=\s*\[(.*?)\]', content, re.S):
+    for dep_block in re.findall(r'\bpaths\s*=\s*\[(.*?)\]', content, re.S):
         for dep in re.findall(r'"([^"]+)"', dep_block):
             check((hcl.parent / dep / "terragrunt.hcl").is_file(),
                   f"Broken dependency path {dep} in {hcl.relative_to(ROOT)}")
@@ -192,7 +192,7 @@ if monitoring_hcl.is_file():
 monitoring_module = (GKE / "03-modules/05-monitoring/main.tf").read_text(encoding="utf-8")
 check('resource "helm_release" "tempo"' in monitoring_module,
       "Monitoring module must deploy Tempo")
-check('chart            = "tempo"' in monitoring_module,
+check(bool(re.search(r'chart\s*=\s*"tempo"', monitoring_module)),
       "Monitoring module must use the Tempo Helm chart")
 print("Live-unit/module/dependency paths checked.")
 
