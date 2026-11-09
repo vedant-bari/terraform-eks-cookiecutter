@@ -59,4 +59,5 @@ resource "helm_release" "tempo" {
   atomic          = true
   cleanup_on_fail = true
   values          = [yamlencode(var.observability_config.tempo)]
+  depends_on      = [helm_release.prometheus_stack]
 }
