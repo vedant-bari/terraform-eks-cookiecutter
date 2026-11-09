@@ -29,6 +29,13 @@ monitoring:
               send_resolved: true
     alertmanagerSpec:
       replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 250m
+          memory: 512Mi
       secrets:
         - alertmanager-webhook
   grafana:
@@ -43,6 +50,13 @@ monitoring:
       passwordKey: admin-password
     ingress:
       enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
     persistence:
       enabled: true
       storageClassName: standard-rwo
@@ -74,6 +88,13 @@ monitoring:
       retention: 7d
       retentionSize: 8GB
       scrapeInterval: 30s
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 2Gi
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
       storageSpec:
@@ -133,6 +154,13 @@ loki:
       delete_request_store: filesystem
   singleBinary:
     replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
     persistence:
       enabled: true
       storageClass: standard-rwo
