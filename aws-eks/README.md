@@ -1,328 +1,117 @@
-# Terraform + Terragrunt AWS EKS Platform
+# Terraform + Terragrunt AWS EKS platform
 
-This repository provisions an AWS platform foundation using Terraform modules and Terragrunt environment configuration. The current `client-a/dev` configuration creates Terraform state infrastructure, a VPC, an Amazon EKS cluster, and—in its current in-progress form—a bastion security group.
+This folder contains the AWS EKS implementation of the multi-cloud platform blueprint. The active structure and operating model now follow the recently merged GKE implementation: YAML-driven client/environment configuration, reusable Terraform modules, Terragrunt live layers, stable remote-state keys, dependency-driven outputs, plan/apply separation, guarded destroy, static validation, and runbooks.
 
-## What is provisioned
+The current reference environment is AMEX dev. Treat it as a starting configuration: verify AWS account, region, EKS version, network ranges, sizing, and costs before using it.
 
-The deployment workflow runs these components in order:
+## Architecture and runbooks
 
-1. **Bootstrap**: an S3 bucket for Terraform state and a KMS key. DynamoDB locking is supported by the module but disabled by default; the generated backend uses S3 lockfiles.
-2. **VPC**: a VPC with three public and three private subnets across `ap-south-1a`, `ap-south-1b`, and `ap-south-1c`, plus NAT gateways when enabled in configuration.
-3. **Bastion**: an Amazon Linux 2023 EC2 host in the first public VPC subnet, with a configurable security group and an SSM-capable IAM instance profile.
-4. **EKS**: an EKS cluster with managed `core_nodes` and `app_nodes` node groups, control-plane logging, and AWS-managed CoreDNS, kube-proxy, and VPC CNI add-ons.
-5. **EBS CSI**: the AWS EBS CSI managed add-on, its IRSA role, and an `ebs-gp3` StorageClass for dynamically provisioned encrypted gp3 volumes.
-6. **EFS CSI**: an encrypted EFS file system with private-subnet mount targets when configured to create one, or an existing EFS file system when configured to adopt one, plus an `efs-sc` RWX StorageClass.
+- [AWS EKS architecture](00-documentation/architecture/AWS_EKS_ARCHITECTURE.md)
+- [Deployment and teardown runbook](00-documentation/deployment/AWS_EKS_DEPLOYMENT_RUNBOOK.md)
+- [Legacy-to-stable state migration guidance](00-documentation/deployment/STATE_LAYOUT_MIGRATION.md)
 
-The included Helm chart is a sample NGINX workload with an ALB ingress and EFS persistent volume claim. It requires an existing EFS filesystem plus the AWS Load Balancer Controller and EFS CSI driver; those dependencies are not provisioned by this repository.
-
-## Repository layout
+## Active repository layout
 
 ```text
-01-bootstrap/                         # State bucket and KMS Terraform module entrypoint
-02-modules/
-  01-bootstrap/                       # S3, KMS, optional DynamoDB lock table
-  02-vpc/                             # terraform-aws-modules/vpc/aws wrapper
-  03-bastion/                         # Bastion EC2 host, security group, and IAM profile
-  04-eks/                             # terraform-aws-modules/eks/aws wrapper
-  05-ebs-csi/                         # EBS CSI add-on, IRSA role, and gp3 StorageClass
-  06-efs-csi/                         # EFS CSI add-on, IRSA role, EFS, and RWX StorageClass
-  07-monitoring/                      # kube-prometheus-stack Helm release
-  08-logging/                         # Loki, Alloy log collection, and Grafana log integration
-03-live/
-  root.hcl                            # Generated AWS provider and S3 backend
-  clients/client-a/dev/               # VPC, bastion, EKS, EBS CSI, and EFS CSI Terragrunt stacks
-12-platform-config/clients/client-a/applications/
-  openmetadata.dev.yaml               # OpenMetadata application values for dev
-  nginx.dev.yaml                      # Nginx application values for dev
-  node.js.dev.yaml                    # Node.js application values for dev
-12-platform-config/clients/client-a/infra/
-  dev.yaml                            # Environment-specific infrastructure settings
-13-kubernetes-apps/client-a/
-  openmetadata/                       # Application directory (uses generic Kustomization template)
-  nginx/                              # Application directory (uses generic Kustomization template)
-  test-app/                           # Sample Helm chart
-  node.js/                            # Application directory (uses generic Kustomization template)
-13-kubernetes-apps/generic-kustomization.template.yaml # Generic Kustomization template for all applications
-scripts/                              # Prerequisite, validation, deploy, and destroy helpers
+aws-eks/
+├── 00-documentation/
+├── 01-config/clients/<client>/<environment>/
+├── 02-scripts/
+│   ├── bootstrap/
+│   ├── scaffolding/
+│   └── templates/
+├── 03-modules/
+├── 04-live/
+├── 05-helm-charts/generic-app/
+├── 06-examples/storage/
+└── 07-tests/
 ```
 
-## Prerequisites
+The previous 01-bootstrap, 03-live, 12-platform-config, 13-kubernetes-apps, and 15-scripts directories are retained as legacy material for reference. New automation must use the active paths above. Do not mix old and new live roots for the same infrastructure.
 
-- An AWS account and credentials with permission to create the configured resources.
-- AWS CLI v2, Terraform, Terragrunt, `kubectl`, and Helm.
-- The AWS CLI configured for the target account:
+## Platform components
 
-  ```bash
-  aws configure
-  aws sts get-caller-identity
-  ```
+| Layer | Function |
+| --- | --- |
+| 01-network | Create a VPC or adopt an existing VPC and supplied subnet IDs; VPC Flow Logs are enabled for newly created VPCs |
+| 02-bastion | Optional EC2 administration host; SSM-first IAM profile, no default ingress |
+| 03-eks | EKS control plane, managed node groups, private API endpoint, OIDC/IRSA, control-plane logs |
+| 04-ebs-csi | EBS CSI managed add-on, IRSA, encrypted gp3 StorageClass, optional static PV/PVC for an existing volume |
+| 05-efs-csi | EFS CSI managed add-on, IRSA, optional encrypted EFS and mount targets, RWX StorageClass |
+| 06-monitoring | kube-prometheus-stack Helm release |
+| 07-logging | Loki and Alloy Helm releases plus Grafana datasource/dashboard integration |
+| 08-applications | YAML-driven Helm releases using the shared generic application chart |
 
-On Ubuntu/Debian, install the tooling with:
+The sample config uses three AZs, one NAT Gateway for development cost control, a private-only EKS API endpoint, two managed node groups, EBS/EFS CSI, Prometheus/Grafana, Loki/Alloy, and an optional application release. Review the trade-offs before adopting the sample for production.
+
+## Terraform and Terragrunt conventions
+
+- Terraform modules are self-contained and declare required providers/version constraints.
+- Client/environment-specific values are supplied through YAML; modules do not hardcode account IDs, client names, or environment-specific CIDRs.
+- The live root loads the YAML config, generates the AWS provider with default tags, and configures the S3 backend.
+- State keys use stable logical layer names: aws-eks/<client>/<environment>/<logical-layer>/terraform.tfstate.
+- Live units consume upstream dependency outputs. Mock outputs are restricted to init and validate; never plan with mock values.
+- Bootstrap/state storage is created before live-layer initialization and is excluded from normal deploy/destroy orchestration.
+- Plan generation, apply, and destroy are separate commands. Saved plans are private, bound to branch/commit, and SHA-256 checked before use.
+- Destroy is plan-only by default, supports a single layer, and requires --destroy plus typed confirmation to execute.
+- Tests are read-only: they check YAML, module references, dependency paths, state-key mapping, Python/Bash syntax, and Helm lint/render when Helm is installed.
+
+## Quick start
+
+Check out the feature branch and review the configuration:
 
 ```bash
-./scripts/install-prerequisites.sh
+git fetch origin
+git switch feature/aws-eks-gke-parity
+git pull --ff-only origin feature/aws-eks-gke-parity
 ```
 
-The installer uses `sudo`, downloads current tool releases, and changes system-wide binaries; review it before running it.
+Review:
+- aws-eks/01-config/clients/amex/dev/infra/dev.yaml
+- aws-eks/01-config/clients/amex/dev/monitoring-and-logging/override.yaml
 
-You can check AWS and EKS API access with:
+Required tools are Terraform 1.15.x, Terragrunt 1.1.x, AWS CLI v2, Python 3 with PyYAML, kubectl, and Helm. Check AWS identity:
 
 ```bash
-./scripts/precheck.sh
+aws sts get-caller-identity
 ```
 
-## Configure an environment
-
-Edit `12-platform-config/clients/client-a/dev.yaml` before deployment. In particular, set:
-
-- `client.account_id`, `client.region`, and resource names.
-- VPC CIDRs and availability zones appropriate for the region.
-- EKS node group sizing and instance types.
-- A globally unique `bootstrap.bucket_name`.
-- Bastion ingress rules restricted to trusted CIDRs. Set `bastion.password` to `null` to use SSM Session Manager without creating a password-authenticated user.
-
-The state bucket name must be unique across all AWS accounts. Bootstrap state is initially local, so retain that local state securely after creation.
-
-## Deploy with the script
-
-Run deployment from the repository root. The script takes a client name and environment matching the configuration path.
+For a new client/environment, first add its YAML configuration, then generate the eight Terragrunt live units:
 
 ```bash
-./scripts/deploy-env.sh client-a dev
+python3 aws-eks/02-scripts/scaffolding/scaffold_client.py --client <client> --environment <environment>
 ```
 
-For each stage, the script runs `terragrunt init`, `validate`, and `plan`, then asks for confirmation before applying. After EKS deploys, it runs `aws eks update-kubeconfig` and prints a command to verify nodes.
+Existing live HCL is preserved unless --force is explicitly supplied. Review generated files before running any plan.
 
-The intended sequence is:
-
-```text
-bootstrap → 02-vpc → 03-bastion → 04-eks → 05-ebs-csi → 06-efs-csi → 07-monitoring → 08-logging → kubeconfig
-```
-
-### How `deploy-env.sh` works
-
-`scripts/deploy-env.sh` is an interactive wrapper around Terragrunt. Its first two positional arguments are the client name and environment:
+If the configured S3 state bucket does not exist, review its globally unique name and create it:
 
 ```bash
-./scripts/deploy-env.sh <client-name> <environment>
+bash aws-eks/02-scripts/bootstrap/create-state-bucket.sh aws-tf-state-amex-dev ap-south-1
 ```
 
-For `./scripts/deploy-env.sh client-a dev`, it sets its working paths to the following locations:
-
-| Stage | Path | Action |
-| --- | --- | --- |
-| Bootstrap | `01-bootstrap/clients/client-a/dev` | Creates the state bucket and KMS key. |
-| VPC | `03-live/clients/client-a/dev/02-vpc` | Creates or adopts the configured VPC. |
-| Bastion | `03-live/clients/client-a/dev/03-bastion` | Creates the bastion host in the VPC's first public subnet. |
-| EKS | `03-live/clients/client-a/dev/04-eks` | Creates the EKS cluster and managed node groups. |
-| EBS CSI | `03-live/clients/client-a/dev/05-ebs-csi` | Installs the EBS CSI add-on and creates the configured gp3 StorageClass. |
-| EFS CSI | `03-live/clients/client-a/dev/06-efs-csi` | Creates or adopts EFS, then installs the EFS CSI add-on and creates the configured RWX StorageClass. |
-| Monitoring | `03-live/clients/client-a/dev/07-monitoring` | Installs the Prometheus, Grafana, and Alertmanager Helm release after EBS storage is available. |
-| Logging | `03-live/clients/client-a/dev/08-logging` | Installs Loki and Grafana Alloy in the existing monitoring namespace, then provisions the Loki datasource and Kubernetes Logs dashboard in Grafana. |
-
-For bootstrap and every existing live component, the script performs this sequence:
-
-```text
-terragrunt init → terragrunt validate → terragrunt plan → confirmation prompt → terragrunt apply -auto-approve
-```
-
-`-auto-approve` is safe here only because the script prompts after displaying the plan. The script exits immediately on a command failure (`set -e`) or if you answer anything other than `y` or `Y` at a prompt.
-
-After the infrastructure loop, it reads `region` and `cluster_name` from `12-platform-config/clients/<client-name>/<environment>.yaml` and runs:
+Run read-only checks:
 
 ```bash
-aws eks update-kubeconfig --region <region> --name <cluster-name>
+bash aws-eks/07-tests/run_tests.sh
 ```
 
-Run the script only from the repository root. It uses the current directory (`pwd`) as its base path, so running it from another directory will cause its relative paths to fail.
+Deploy by planning, reviewing, and applying one layer at a time. For a fresh environment, do not plan every layer before applying the first one because downstream layers require real upstream state outputs. The complete command sequence and teardown process are in the deployment runbook.
 
-## Manual deployment
+## Security and operational constraints
 
-From the repository root:
+- The sample EKS endpoint is private-only. Run Terraform/Kubernetes/Helm operations from a network that can reach the EKS private endpoint.
+- If public endpoint access is enabled, the module requires an explicit CIDR allowlist.
+- Bastion is disabled by default. If enabled, it has no default inbound rules; its sample public-subnet placement uses a public IP for outbound SSM connectivity. For a private-only bastion, provision SSM interface endpoints first.
+- The state bucket uses S3 versioning, SSE-S3 encryption, public-access blocks, and a deny-insecure-transport policy. This bootstrap script does not create a customer-managed KMS key.
+- Saved plan files and state can contain sensitive values. Keep them outside Git with restrictive permissions.
+- Do not destroy the S3 backend bucket as part of an environment teardown.
+- Existing infrastructure deployed with the legacy 03-live root needs state migration before using the new 04-live root. Follow STATE_LAYOUT_MIGRATION.md; never apply a plan that proposes recreating existing resources.
 
-```bash
-cd 01-bootstrap/clients/client-a/dev
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
+## Known gaps before production use
 
-Then deploy the VPC:
+This branch does not currently provision ECR repositories/image lifecycle, Jenkins CI/CD, AWS Secrets Manager-to-External-Secrets integration, AWS Load Balancer Controller, Karpenter, or VPC interface endpoints. The generic application chart can configure ALB ingress and external-secret references, but those integrations must remain disabled until their controllers and IAM are installed and tested.
 
-```bash
-cd ../../../../03-live/clients/client-a/dev/02-vpc
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
+The sample Loki deployment is a single replica using filesystem storage. It is not a highly available or durable production logging architecture. Production adoption also requires HA sizing, S3-backed Loki storage, alert routing, retention review, disaster-recovery design, and cost/security validation.
 
-Then deploy the bastion, followed by EKS:
-
-```bash
-cd ../03-bastion
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
-
-```bash
-cd ../04-eks
-
-```bash
-cd ../04-eks
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
-
-Then deploy the EBS CSI add-on and StorageClass:
-
-```bash
-cd ../05-ebs-csi
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
-
-Then deploy EFS storage:
-
-```bash
-cd ../06-efs-csi
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
-
-Then deploy the monitoring Helm release through Terraform:
-
-```bash
-cd ../07-monitoring
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
-
-Then deploy logging:
-
-```bash
-cd ../08-logging
-terragrunt init
-terragrunt validate
-terragrunt plan
-terragrunt apply
-```
-
-Configure `kubectl` after EKS is ready:
-
-```bash
-aws eks update-kubeconfig --region ap-south-1 --name eks-client-a-dev
-kubectl get nodes
-```
-
-## Use EBS persistent storage
-
-After the `05-ebs-csi` component has been applied, verify the controller and StorageClass:
-
-```bash
-kubectl get pods -n kube-system -l app=ebs-csi-controller
-kubectl get storageclass ebs-gp3
-```
-
-Create a dynamically provisioned EBS-backed claim with the included example:
-
-```bash
-kubectl apply -f 13-kubernetes-apps/ebs-pvc-example.yaml
-kubectl get pvc app-data
-```
-
-EBS volumes support `ReadWriteOnce`, so use one PVC per replica for workloads that run on multiple nodes. `WaitForFirstConsumer` delays volume creation until the pod is scheduled, ensuring the volume is created in that pod's Availability Zone. Set `ebs.reclaim_policy` to `Retain` in the environment YAML when deleting a claim must preserve its EBS volume.
-
-To use a volume that already exists, set `ebs.create: false` and provide its `ebs.existing_id` (for example, `vol-0123456789abcdef0`). The component discovers the volume's size and Availability Zone, then creates a static PV and an `existing-ebs-pvc` claim in the configured namespace. The volume is retained if the Terragrunt component is destroyed.
-
-## Use EFS persistent storage
-
-The `efs-sc` StorageClass dynamically creates an EFS access point for each claim and supports `ReadWriteMany`. Apply the included example:
-
-```bash
-kubectl apply -f 13-kubernetes-apps/efs-pvc-example.yaml
-kubectl get pvc shared-app-data
-```
-
-For a new EFS file system, set `efs.create: true`; mount targets and their NFS security group are created in every private subnet. To adopt an existing file system, set `efs.create: false` and `efs.existing_id` to its `fs-...` ID. Existing EFS mount targets must already be reachable from the EKS node security group over TCP port 2049.
-
-## Deploy the sample Helm chart
-
-After installing the required controllers and setting a real EFS file-system ID in `13-kubernetes-apps/test-app/values.yaml`:
-
-```bash
-helm upgrade --install eks-test-app ./13-kubernetes-apps/test-app
-kubectl get pods,svc,ingress,pv,pvc
-```
-
-## Deploy monitoring
-
-The `07-monitoring` Terragrunt component manages the pinned `prometheus-community/kube-prometheus-stack` Helm release in the `monitoring` namespace. It depends on `05-ebs-csi` and configures Prometheus, Grafana, and Alertmanager with EBS-backed claims.
-
-```bash
-./scripts/deploy-env.sh client-a dev
-```
-
-Grafana receives the chart's built-in Kubernetes dashboards, including cluster, node, namespace, and pod CPU/memory, network, and resource views. To access Grafana locally:
-
-```bash
-kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
-kubectl -n monitoring get secret monitoring-grafana -o jsonpath='{.data.admin-password}' | base64 --decode; echo
-```
-
-Use `admin` as the Grafana user. Configure Alertmanager receivers (for email, Slack, PagerDuty, or another destination) in the `monitoring` section of the client override file before relying on notifications.
-
-## Deploy logging
-
-The `08-logging` Terragrunt component deploys Loki and Grafana Alloy into the existing `monitoring` namespace. Alloy collects pod logs from all namespaces and Kubernetes events through the Kubernetes API and sends them to Loki. The Grafana sidecars installed by `07-monitoring` automatically discover the managed Loki datasource and **Kubernetes Logs** dashboard.
-
-Monitoring, Loki, and Alloy values share one client-owned override file. Its path is explicitly configured in the environment YAML:
-
-```yaml
-monitoring:
-  override_values_file: "clients/client-a/monitoring-and-logging/override.yaml"
-
-logging:
-  override_values_file: "clients/client-a/monitoring-and-logging/override.yaml"
-```
-
-For `client-a`, edit [the shared override](/home/vedant-bari/workspace/nuclesteq/terraform-eks-cookiecutter/12-platform-config/clients/client-a/monitoring-and-logging/override.yaml). The modules select their respective `monitoring`, `loki`, or `alloy` section before passing it to Helm. The committed Loki configuration is a persistent single-replica filesystem deployment for development; use an S3-backed distributed configuration before relying on it for highly available production log retention.
-
-## Destroy
-
-The destroy helper is interactive:
-
-```bash
-./scripts/destroy-env.sh client-a dev
-```
-
-It destroys EKS, then bastion, then VPC, then bootstrap. Destroying bootstrap deletes the Terraform state bucket and KMS key; use this only when permanently removing the environment.
-
-## Security and operational notes
-
-- The EKS API endpoint is publicly accessible in the current module configuration. Restrict it with an explicit CIDR allowlist before production use.
-- Avoid `0.0.0.0/0` SSH ingress and never commit real passwords or credentials to YAML.
-- The bootstrap S3 bucket has `force_destroy = true`; all object versions can be removed during destruction.
-- Pin container image tags instead of using mutable tags such as `latest`.
-- Run formatting and validation before a pull request:
-
-  ```bash
-  terraform fmt -check -recursive
-  terragrunt hcl format --check
-  helm lint 13-kubernetes-apps/test-app
-  ```
-
-## Status
-
-The VPC, bastion, and EKS stacks are implemented. VPC flow logs/endpoints, private EKS endpoint access, subnet discovery tags, IAM/IRSA configuration, and the Helm chart's AWS dependencies are future work needed for a production-ready platform.
+No AWS infrastructure is created, modified, or destroyed by the repository edits in this branch.

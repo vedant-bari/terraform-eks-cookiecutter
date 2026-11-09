@@ -1,0 +1,121 @@
+# AWS EKS platform configuration for AMEX dev.
+# Verify account identity, region, CIDRs, and supported EKS version before planning.
+
+client:
+  name: amex
+environment: dev
+
+aws:
+  region: ap-south-1
+  tags:
+    Environment: dev
+    Client: amex
+    ManagedBy: terragrunt
+    Owner: platform-engineering
+
+bootstrap:
+  state_bucket_name: aws-tf-state-amex-dev
+
+vpc:
+  create: true
+  name: amex-dev-vpc
+  cidr: 10.80.0.0/16
+  azs: [ap-south-1a, ap-south-1b, ap-south-1c]
+  private_subnets: [10.80.1.0/24, 10.80.2.0/24, 10.80.3.0/24]
+  public_subnets: [10.80.101.0/24, 10.80.102.0/24, 10.80.103.0/24]
+  database_subnets: []
+  existing_vpc_id: ""
+  existing_private_subnet_ids: []
+  existing_public_subnet_ids: []
+  enable_nat_gateway: true
+  single_nat_gateway: true
+  enable_dns_hostnames: true
+  enable_dns_support: true
+  map_public_ip_on_launch: true
+  enable_flow_logs: true
+  flow_logs_retention_days: 30
+
+bastion:
+  create: false
+  instance_type: t3.micro
+  username: ssm-user
+  password_env: BASTION_PASSWORD
+  existing_role_arn: ""
+  associate_public_ip_address: true
+  ingress_rules: []
+  egress_rules:
+    - description: Allow outbound traffic
+      from_port: 0
+      to_port: 0
+      protocol: "-1"
+      cidr_blocks: [0.0.0.0/0]
+
+eks:
+  cluster_name: eks-amex-dev
+  # EKS 1.36 is in standard support as of November 2026; recheck before deployment.
+  cluster_version: "1.36"
+  endpoint_private_access: true
+  endpoint_public_access: false
+  endpoint_public_access_cidrs: []
+  cluster_enabled_log_types: [api, audit, authenticator, controllerManager, scheduler]
+  create_cloudwatch_log_group: true
+  cluster_addons:
+    coredns:
+      most_recent: true
+    kube-proxy:
+      most_recent: true
+    vpc-cni:
+      most_recent: true
+  node_groups:
+    core_nodes:
+      min_size: 1
+      max_size: 3
+      desired_size: 1
+      instance_types: [t3.medium]
+      capacity_type: ON_DEMAND
+      ami_type: AL2023_x86_64_STANDARD
+      labels:
+        workload: system
+    app_nodes:
+      min_size: 1
+      max_size: 5
+      desired_size: 1
+      instance_types: [t3.large, m5.large]
+      capacity_type: SPOT
+      ami_type: AL2023_x86_64_STANDARD
+      labels:
+        workload: application
+
+ebs:
+  create: true
+  storage_class_name: ebs-gp3
+  existing_id: ""
+  existing_pv_name: existing-ebs-pv
+  existing_pvc_name: existing-ebs-pvc
+  existing_pvc_namespace: default
+  existing_fs_type: ext4
+  addon_version: null
+  reclaim_policy: Delete
+
+efs:
+  create: true
+  existing_id: ""
+  storage_class_name: efs-sc
+  access_point_base_path: /dynamic_provisioning
+  transition_to_ia: AFTER_30_DAYS
+  addon_version: null
+  reclaim_policy: Delete
+
+monitoring:
+  namespace: monitoring
+  chart_version: "86.0.0"
+  override_values_file: clients/amex/dev/monitoring-and-logging/override.yaml
+
+logging:
+  override_values_file: clients/amex/dev/monitoring-and-logging/override.yaml
+  loki_chart_version: "6.34.0"
+  alloy_chart_version: "1.11.0"
+
+applications:
+  enabled: false
+

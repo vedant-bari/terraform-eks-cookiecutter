@@ -1,3 +1,9 @@
+# LEGACY ROOT: retained for existing state inspection only.
+# New environments and all new automation must use ../04-live/root.hcl.
+# The old path-relative S3 keys are different from the stable keys in 04-live.
+# Review 00-documentation/deployment/STATE_LAYOUT_MIGRATION.md before migrating
+# any infrastructure that was previously deployed through this root.
+
 locals {
   rel_path    = try(path_relative_to_include(), "")
   path_tokens = split("/", local.rel_path)
@@ -9,12 +15,11 @@ locals {
   repo_root = get_repo_root()
   yaml_path = local.is_client_env ? "${local.repo_root}/aws-eks/12-platform-config/clients/${local.client_name}/${local.env_name}/infra/${local.env_name}.yaml" : ""
 
-  # Provide a consistent typed fallback map to satisfy Terraform's conditional type checks
   default_config = {
-    client    = { name = "" }
+    client      = { name = "" }
     environment = ""
-    aws       = { project_id = "", region = "us-east-1", zone = "", tags = {} }
-    bootstrap = { state_bucket_name = "default-tf-state", force_destroy = false, uniform_bucket_level_access = true }
+    aws         = { project_id = "", region = "us-east-1", zone = "", tags = {} }
+    bootstrap   = { state_bucket_name = "default-tf-state", force_destroy = false, uniform_bucket_level_access = true }
   }
 
   infra_config = local.yaml_path != "" && fileexists(local.yaml_path) ? yamldecode(file(local.yaml_path)) : local.default_config

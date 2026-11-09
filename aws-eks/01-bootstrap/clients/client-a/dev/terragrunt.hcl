@@ -32,7 +32,7 @@ EOF
 
 terraform {
   # Point up 4 levels, then into the 02-modules directory
-  source = "${get_original_terragrunt_dir()}/../../../../02-modules/01-bootstrap"
+  source = "${get_original_terragrunt_dir()}/../../../../03-modules/01-bootstrap"
 }
 
 # 5. Inject the variables parsed from the YAML into the Terraform module

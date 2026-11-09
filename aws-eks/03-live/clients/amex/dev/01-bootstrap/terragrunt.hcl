@@ -4,7 +4,7 @@ include "root" {
 }
 
 terraform {
-  source = "${get_repo_root()}/aws-eks/02-modules/01-bootstrap"
+  source = "${get_repo_root()}/aws-eks/03-modules/01-bootstrap"
 }
 
 inputs = {

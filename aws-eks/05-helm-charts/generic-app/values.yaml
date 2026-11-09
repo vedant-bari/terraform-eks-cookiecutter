@@ -1,0 +1,105 @@
+# Default values for the generic-app chart.
+# Application-specific overrides are stored under aws-eks/01-config/clients/<client>/<environment>/applications/.
+
+nameOverride: ""
+fullnameOverride: ""
+namespace: ""
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "latest"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+containerPort: 8080
+command: []
+args: []
+env: []
+
+externalSecret:
+  enabled: false
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secretsmanager
+  remoteRef: ""
+  refreshInterval: 1h
+  targetSecretName: ""
+  creationPolicy: Owner
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+  hosts: []
+  tls: []
+
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+probes:
+  startup: { enabled: false }
+  readiness: { enabled: false }
+  liveness: { enabled: false }
+
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 500m, memory: 512Mi}
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+storage:
+  efs:
+    enabled: false
+    createPersistentVolume: false
+    fileSystemId: ""
+    accessPointId: ""
+    storageClassName: efs-sc
+    capacity: 5Gi
+    reclaimPolicy: Retain
+    mountPath: /mnt/efs
+    readOnly: false
+    subPath: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

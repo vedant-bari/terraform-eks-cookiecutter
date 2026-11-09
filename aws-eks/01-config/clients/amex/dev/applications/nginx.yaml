@@ -1,0 +1,35 @@
+# Sample only. Set applications.enabled=true in infra/dev.yaml to deploy it.
+namespace: sample-nginx
+replicaCount: 2
+image:
+  repository: nginxinc/nginx-unprivileged
+  tag: "1.27.5"
+  pullPolicy: IfNotPresent
+containerPort: 8080
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: [ALL]
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+  fsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+service:
+  type: ClusterIP
+  port: 80
+ingress:
+  enabled: false
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
