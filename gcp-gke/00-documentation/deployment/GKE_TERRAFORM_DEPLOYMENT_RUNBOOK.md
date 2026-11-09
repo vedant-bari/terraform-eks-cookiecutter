@@ -1,7 +1,7 @@
 # GKE Terraform / Terragrunt Deployment Runbook
 
 **Status:** Living operational document  
-**Last updated:** 2026-11-08  
+**Last updated:** 2026-11-09  
 **Repository:** `vedant-bari/terraform-eks-cookiecutter`  
 **Review branch:** `review/d1-d2-d3-d4-gke-hardening` (review only; do not merge without approval)  
 **Scope:** `gcp-gke/04-live/clients/amex/prod` (retained test configuration)
