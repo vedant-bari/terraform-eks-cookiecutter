@@ -26,6 +26,9 @@ locals {
 
 inputs = {
   observability_config      = local.observability_config
+  grafana_admin_username    = local.observability_config.credentials.grafana.username
+  grafana_admin_password    = get_env(local.observability_config.credentials.grafana.password_env)
+  alertmanager_webhook_url  = get_env(local.observability_config.credentials.alertmanager.webhook_url_env)
   cluster_endpoint          = dependency.gke.outputs.cluster_endpoint
   cluster_ca_certificate    = dependency.gke.outputs.cluster_ca_certificate
 }
