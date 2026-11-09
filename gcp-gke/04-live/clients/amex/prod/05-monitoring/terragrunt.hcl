@@ -17,15 +17,15 @@ dependency "gke" {
 }
 
 locals {
-  path_parts  = split("/", get_path_from_repo_root())
-  client_name = local.path_parts[3]
-  env_name    = local.path_parts[4]
+  path_parts                = split("/", get_path_from_repo_root())
+  client_name               = local.path_parts[3]
+  env_name                  = local.path_parts[4]
   observability_config_path = "${get_repo_root()}/gcp-gke/01-config/clients/${local.client_name}/${local.env_name}/monitoring-and-logging/${local.env_name}.yaml"
   observability_config = yamldecode(file(local.observability_config_path))
 }
 
 inputs = {
-  observability_config   = local.observability_config
-  cluster_endpoint       = dependency.gke.outputs.cluster_endpoint
-  cluster_ca_certificate = dependency.gke.outputs.cluster_ca_certificate
+  observability_config      = local.observability_config
+  cluster_endpoint          = dependency.gke.outputs.cluster_endpoint
+  cluster_ca_certificate    = dependency.gke.outputs.cluster_ca_certificate
 }
