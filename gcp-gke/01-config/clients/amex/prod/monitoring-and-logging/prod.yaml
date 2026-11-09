@@ -9,7 +9,11 @@ credentials:
     username_key: admin-user
     password_key: admin-password
 
+# Pin chart versions to keep deployments reproducible across plan/apply runs.
 chart_versions:
+  kube_prometheus_stack: "93.1.0"
+  loki: "7.5.0"
+  alloy: "1.15.0"
   tempo: "3.2.1"
 
 monitoring:
