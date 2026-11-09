@@ -1,6 +1,6 @@
 # Open-source observability stack for the AMEX GKE test environment.
 # Grafana is intentionally internal-only; access it through kubectl port-forward.
-# Secret values are read from the operator environment and are never committed here.
+# Grafana's bootstrap password is read from the operator environment.
 credentials:
   grafana:
     username: admin
@@ -8,10 +8,6 @@ credentials:
     secret_name: grafana-admin-credentials
     username_key: admin-user
     password_key: admin-password
-  alertmanager:
-    webhook_url_env: ALERTMANAGER_WEBHOOK_URL
-    secret_name: alertmanager-webhook
-    webhook_key: webhook_url
 
 chart_versions:
   tempo: "3.2.1"
@@ -30,16 +26,15 @@ monitoring:
       global:
         resolve_timeout: 5m
       route:
-        receiver: webhook
+        receiver: "null"
         group_by: [alertname, namespace]
         group_wait: 30s
         group_interval: 5m
         repeat_interval: 4h
+      # Alerts remain visible in Prometheus/Alertmanager; external notifications
+      # are opt-in and require a real destination (Slack, email, PagerDuty, etc.).
       receivers:
-        - name: webhook
-          webhook_configs:
-            - url_file: /etc/alertmanager/secrets/alertmanager-webhook/webhook_url
-              send_resolved: true
+        - name: "null"
     alertmanagerSpec:
       replicas: 1
       resources:
@@ -49,8 +44,6 @@ monitoring:
         limits:
           cpu: 250m
           memory: 512Mi
-      secrets:
-        - alertmanager-webhook
   grafana:
     enabled: true
     replicas: 1
