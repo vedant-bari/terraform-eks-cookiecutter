@@ -2,7 +2,7 @@
 
 A reusable Google Cloud platform blueprint built with Terraform, Terragrunt, GKE, Helm, and GitOps-oriented deployment patterns.
 
-> **Repository status:** The AMEX configuration under `04-live/clients/amex/prod` is retained as a historical test deployment. The infrastructure created from it was deleted. This migration is a repository-structure and reference update only; it does not run Terraform, change cloud resources, or remove remote state objects.
+> **Repository status:** The AMEX configuration under `04-live/clients/amex/prod` is a retained test environment. Confirm its actual cloud resources, project and state before operating it. Repository changes do not run Terraform or change cloud resources.
 
 ## Repository layout
 
@@ -31,11 +31,11 @@ The retained AMEX test configuration uses the following layer names:
 | `02-gke` | GKE cluster |
 | `03-artifact-registry` | Container image registry |
 | `04-storage` | Storage configuration |
-| `05-monitoring` | Reserved for a future optional layer; not part of the retained AMEX deployment |
+| `05-monitoring` | Prometheus, Grafana, Alertmanager, Loki, Alloy and Tempo observability stack |
 | `06-jenkins` | Jenkins platform components |
 | `07-applications` | Application workloads |
 
-The dependency graph, not the numeric prefixes alone, determines execution order. GKE depends on Network; Artifact Registry, Storage, and Jenkins depend on GKE; Applications depend on GKE, Artifact Registry, and Jenkins.
+The dependency graph, not the numeric prefixes alone, determines execution order. GKE depends on Network; Artifact Registry, Storage, Monitoring and Jenkins consume GKE outputs; Applications depend on GKE, Artifact Registry, and Jenkins. Monitoring is wired as an independent post-GKE layer and is sequenced after Storage by the saved-plan orchestration.
 
 ## Configuration
 
@@ -48,7 +48,7 @@ Environment configuration is stored under:
 └── jenkins/
 ```
 
-Keep credentials out of committed YAML. Use Secret Manager references or another approved secret-injection mechanism, and supply sensitive values through the relevant secure runtime integration.
+Keep credentials out of committed YAML. The monitoring stack expects the `monitoring` namespace plus `grafana-admin-credentials` and `alertmanager-webhook` Kubernetes Secrets to be provisioned before planning/applying. Their values are not managed by Terraform and must be injected securely. See the deployment runbook for the exact preflight and verification steps.
 
 ## Terraform state identity
 
@@ -94,5 +94,7 @@ The repository static validation does not run Terraform plans or cloud operation
 Run the read-only checks with `bash gcp-gke/07-tests/run_tests.sh`. Create plans with `bash gcp-gke/02-scripts/plan-env.sh <client> <environment>`, review every saved plan, then apply only the exact saved plans with `bash gcp-gke/02-scripts/apply-env.sh <client> <environment> --plan-dir <directory> --approve`. For fresh environments, use `--layer` and plan/apply in dependency order so downstream units consume real outputs. Destruction is plan-only by default and requires explicit `--destroy` plus typed confirmation. Bootstrap/state bucket is excluded.
 
 ## Historical documentation
+
+The open-source observability module is `03-modules/05-monitoring`; its AMEX live entry point is `04-live/clients/amex/prod/05-monitoring`. It reuses the existing Prometheus/Grafana/Loki/Alloy implementation and adds Tempo single-binary tracing for small test workloads. Grafana, Loki and Tempo remain internal-only. Applications must use OpenTelemetry instrumentation and export OTLP to Tempo; deploying the backend alone does not generate application traces.
 
 Operational procedures are retained under `00-documentation`. In particular, review `operations/BOOTSTRAP_DELETION.md` carefully before following it: it contains destructive state-cleanup guidance and is preserved for historical reference, not endorsed as a routine migration step.
