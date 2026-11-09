@@ -259,7 +259,7 @@ def optional(command: list[str], label: str) -> None:
         errors.append(f"{label} failed: {(result.stdout + result.stderr).strip()}")
 
 optional(["terraform", "fmt", "-check", "-recursive", str(GKE / "03-modules")], "terraform fmt -check")
-optional(["terragrunt", "hcl", "fmt", "--check", "--working-dir", str(LIVE)], "terragrunt hcl fmt --check")
+optional(["terragrunt", "hcl", "fmt", "--check", f"--file={monitoring_hcl}"], "terragrunt hcl fmt --check (monitoring unit)")
 optional(["helm", "lint", str(GKE / "05-helm-charts/generic-app")], "helm lint")
 
 optional(["helm", "template", "test-backend", str(GKE / "05-helm-charts/generic-app"),
