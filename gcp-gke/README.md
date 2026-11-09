@@ -48,7 +48,7 @@ Environment configuration is stored under:
 └── jenkins/
 ```
 
-The monitoring module creates the `monitoring` namespace and the `grafana-admin-credentials` / `alertmanager-webhook` Kubernetes Secrets. The environment YAML stores the Grafana username, Secret names/keys, and names of required environment variables; actual password and webhook URL values are supplied at runtime. Do not commit secret values. Terraform state contains Kubernetes Secret data, so restrict access to the encrypted GCS state bucket and saved plans. See the deployment runbook for the exact workflow.
+The monitoring module creates the `monitoring` namespace and Grafana bootstrap Secret. The environment YAML stores the Grafana username, Secret name/keys, and password environment-variable name; the password is supplied at runtime. Alertmanager is configured with a no-destination receiver by default, so the stack deploys without an external webhook. Add a real notification integration only when a destination (Slack, email, PagerDuty, internal webhook service, etc.) has been selected. Terraform state contains Grafana Secret data, so restrict access to the encrypted GCS state bucket and saved plans. See the deployment runbook for the exact workflow.
 
 ## Terraform state identity
 
