@@ -78,10 +78,26 @@ try:
     alloy_cfg = observability_cfg.get("alloy") or {}
     check(grafana_cfg.get("ingress", {}).get("enabled") is False,
           "Grafana ingress must remain disabled by default")
-    check(grafana_cfg.get("admin", {}).get("existingSecret") == "grafana-admin-credentials",
-          "Grafana admin credentials must be sourced from the pre-created Kubernetes Secret")
-    check("alertmanager-webhook" in (alertmanager_cfg.get("alertmanagerSpec") or {}).get("secrets", []),
-          "Alertmanager webhook credentials must be sourced from the pre-created Kubernetes Secret")
+    credentials_cfg = observability_cfg.get("credentials") or {}
+    grafana_credentials = credentials_cfg.get("grafana") or {}
+    alertmanager_credentials = credentials_cfg.get("alertmanager") or {}
+    check(bool(grafana_credentials.get("username")) and bool(grafana_credentials.get("password_env")),
+          "Grafana username and password environment-variable mapping must be configured")
+    check(bool(alertmanager_credentials.get("webhook_url_env")),
+          "Alertmanager webhook environment-variable mapping must be configured")
+    check(grafana_cfg.get("admin", {}).get("existingSecret") == grafana_credentials.get("secret_name"),
+          "Grafana chart Secret name must match the module-managed Secret")
+    check(grafana_cfg.get("admin", {}).get("userKey") == grafana_credentials.get("username_key")
+          and grafana_cfg.get("admin", {}).get("passwordKey") == grafana_credentials.get("password_key"),
+          "Grafana Secret keys must match the module-managed Secret keys")
+    check(alertmanager_credentials.get("secret_name") in (alertmanager_cfg.get("alertmanagerSpec") or {}).get("secrets", []),
+          "Alertmanager chart Secret name must match the module-managed Secret")
+    monitoring_module_text = (GKE / "03-modules/05-monitoring/main.tf").read_text(encoding="utf-8")
+    check('resource "kubernetes_namespace_v1" "monitoring"' in monitoring_module_text,
+          "Monitoring module must create its namespace")
+    check('resource "kubernetes_secret_v1" "grafana_admin"' in monitoring_module_text
+          and 'resource "kubernetes_secret_v1" "alertmanager_webhook"' in monitoring_module_text,
+          "Monitoring module must create Grafana and Alertmanager Kubernetes Secrets")
     check(bool((alloy_cfg.get("rbac") or {}).get("rules")),
           "Alloy must define read-only Kubernetes RBAC rules for pod logs and events")
     check((observability_cfg.get("chart_versions") or {}).get("tempo") == "3.2.1",
