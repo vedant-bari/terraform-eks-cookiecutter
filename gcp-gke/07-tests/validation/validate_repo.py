@@ -73,8 +73,19 @@ try:
           "AMEX observability config must enable persistent Tempo storage")
     check(bool((observability_cfg.get("monitoring") or {}).get("additionalPrometheusRulesMap")),
           "AMEX observability config must define workload alert rules")
-    check((observability_cfg.get("monitoring") or {}).get("grafana", {}).get("ingress", {}).get("enabled") is False,
+    grafana_cfg = (observability_cfg.get("monitoring") or {}).get("grafana") or {}
+    alertmanager_cfg = (observability_cfg.get("monitoring") or {}).get("alertmanager") or {}
+    alloy_cfg = observability_cfg.get("alloy") or {}
+    check(grafana_cfg.get("ingress", {}).get("enabled") is False,
           "Grafana ingress must remain disabled by default")
+    check(grafana_cfg.get("admin", {}).get("existingSecret") == "grafana-admin-credentials",
+          "Grafana admin credentials must be sourced from the pre-created Kubernetes Secret")
+    check("alertmanager-webhook" in (alertmanager_cfg.get("alertmanagerSpec") or {}).get("secrets", []),
+          "Alertmanager webhook credentials must be sourced from the pre-created Kubernetes Secret")
+    check(bool((alloy_cfg.get("rbac") or {}).get("rules")),
+          "Alloy must define read-only Kubernetes RBAC rules for pod logs and events")
+    check((observability_cfg.get("chart_versions") or {}).get("tempo") == "3.2.1",
+          "Tempo Helm chart version must be pinned")
 except Exception as exc:
     errors.append(f"AMEX config contract validation failed: {exc}")
 
