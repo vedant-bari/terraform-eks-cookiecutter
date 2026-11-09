@@ -15,12 +15,26 @@ PLAN_DIR=""
 SELECTED_LAYER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --plan-dir) [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }; PLAN_DIR=$2; shift 2 ;;
-    --layer) [[ $# -ge 2 ]] || { echo "--layer requires a value" >&2; exit 2; }; SELECTED_LAYER=$2; shift 2 ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+    --plan-dir)
+      [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }
+      PLAN_DIR=$2
+      shift 2
+      ;;
+    --layer)
+      [[ $# -ge 2 ]] || { echo "--layer requires a value" >&2; exit 2; }
+      SELECTED_LAYER=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
   esac
-  shift
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
