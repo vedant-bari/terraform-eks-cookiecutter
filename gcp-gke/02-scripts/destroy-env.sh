@@ -19,22 +19,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --plan-dir)
       [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }
-      PLAN_DIR=$2
-      shift 2
-      ;;
-    --destroy)
-      DESTROY=true
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown argument: $1" >&2
-      usage >&2
-      exit 2
-      ;;
+      PLAN_DIR=$2; shift 2 ;;
+    --destroy) DESTROY=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,7 +33,8 @@ cd "$REPO_ROOT"
 BRANCH="$(git branch --show-current)"
 COMMIT="$(git rev-parse HEAD)"
 [[ -z "$(git status --porcelain)" ]] || { echo "Refusing to run with a dirty working tree." >&2; exit 1; }
-LAYERS=(07-applications 06-jenkins 04-storage 03-artifact-registry 02-gke 01-network)
+# Reverse dependency order: applications, Jenkins, monitoring, storage, registry, GKE, network.
+LAYERS=(07-applications 06-jenkins 05-monitoring 04-storage 03-artifact-registry 02-gke 01-network)
 
 if [[ "$DESTROY" == false ]]; then
   if [[ -z "$PLAN_DIR" ]]; then
