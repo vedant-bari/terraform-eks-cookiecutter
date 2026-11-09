@@ -7,7 +7,7 @@
 **Scope:** `gcp-gke/04-live/clients/amex/prod` (retained test configuration)
 
 > [!CAUTION]
-> AMEX is retained historical test configuration. Its earlier infrastructure was deleted. Do not treat it as production-ready. This runbook does not authorize provisioning, state import/migration, or destruction. Obtain explicit approval before any infrastructure- or state-changing operation.
+> AMEX is retained test configuration and has since been provisioned for validation. Verify the live cluster, project, identity and state before operating it; do not treat this configuration as production-ready. This runbook does not authorize provisioning, state import/migration, or destruction. Obtain explicit approval before any infrastructure- or state-changing operation.
 
 ## 1. Safety rules
 
