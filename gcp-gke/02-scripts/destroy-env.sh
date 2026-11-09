@@ -17,12 +17,25 @@ CLIENT=$1; ENV=$2; shift 2
 PLAN_DIR=""; DESTROY=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --plan-dir) [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }; PLAN_DIR=$2; shift 2 ;;
-    --destroy) DESTROY=true ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+    --plan-dir)
+      [[ $# -ge 2 ]] || { echo "--plan-dir requires a value" >&2; exit 2; }
+      PLAN_DIR=$2
+      shift 2
+      ;;
+    --destroy)
+      DESTROY=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
   esac
-  shift
 done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -55,7 +68,7 @@ if [[ "$DESTROY" == false ]]; then
     terragrunt --working-dir "$layer_dir" run -- plan -destroy -input=false -out="$plan_file"
     [[ -s "$plan_file" ]] || { echo "Destroy plan missing: $plan_file" >&2; exit 1; }
     chmod 600 "$plan_file"
-    printf 'sha256.%s=%s\n' "$layer" "$(sha256sum "$plan_file" | cut -d ' ' -f1)" >> "$PLAN_DIR/manifest"
+    printf 'sha256.%s=%s\n' "$layer" "$(sha256sum "$plan_file" | cut -d ' ' -f1)" >> "${PLAN_DIR}/manifest"
   done
   echo "Destroy plans saved at: $PLAN_DIR"
   echo "Review each plan before using --destroy. No resources were destroyed."
