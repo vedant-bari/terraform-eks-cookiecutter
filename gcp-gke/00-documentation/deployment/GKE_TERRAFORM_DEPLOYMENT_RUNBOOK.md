@@ -31,9 +31,9 @@ Active live units:
 3. `02-gke`
 4. `03-artifact-registry`
 5. `04-storage`
-5. `05-monitoring` — Prometheus, Grafana, Alertmanager, Loki, Alloy and Tempo.
-6. `06-jenkins`
-7. `07-applications`
+6. `05-monitoring` — Prometheus, Grafana, Alertmanager, Loki, Alloy and Tempo.
+7. `06-jenkins`
+8. `07-applications`
 
 The AMEX monitoring layer is deployed after storage and before Jenkins in the orchestration order. Existing Jenkins and application layers are not changed by a monitoring-only plan. `17-tmp-backup` is historical and must remain untouched.
 
