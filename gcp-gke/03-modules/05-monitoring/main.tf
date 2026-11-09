@@ -1,4 +1,4 @@
-# Namespace and credentials are first-class resources in this module.
+# The module owns the namespace and Grafana bootstrap credentials.
 resource "kubernetes_namespace_v1" "monitoring" {
   metadata {
     name = "monitoring"
@@ -18,18 +18,6 @@ resource "kubernetes_secret_v1" "grafana_admin" {
   }
 }
 
-resource "kubernetes_secret_v1" "alertmanager_webhook" {
-  metadata {
-    name      = var.observability_config.credentials.alertmanager.secret_name
-    namespace = kubernetes_namespace_v1.monitoring.metadata[0].name
-  }
-
-  type = "Opaque"
-  data = {
-    (var.observability_config.credentials.alertmanager.webhook_key) = var.alertmanager_webhook_url
-  }
-}
-
 # Prometheus, Grafana, Alertmanager, kube-state-metrics and node-exporter.
 resource "helm_release" "prometheus_stack" {
   name            = "kube-prometheus-stack"
@@ -41,7 +29,7 @@ resource "helm_release" "prometheus_stack" {
   atomic          = true
   cleanup_on_fail = true
   values          = [yamlencode(var.observability_config.monitoring)]
-  depends_on      = [kubernetes_secret_v1.grafana_admin, kubernetes_secret_v1.alertmanager_webhook]
+  depends_on      = [kubernetes_secret_v1.grafana_admin]
 }
 
 # Loki is the in-cluster log store. Keep it internal (ClusterIP) and persist data.
