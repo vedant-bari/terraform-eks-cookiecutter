@@ -52,7 +52,7 @@ resource "helm_release" "tempo" {
   name            = "tempo"
   repository      = "https://grafana-community.github.io/helm-charts"
   chart           = "tempo"
-  version         = "3.2.1"
+  version         = var.observability_config.chart_versions.tempo
   namespace       = data.kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout         = 1200
   wait            = true
