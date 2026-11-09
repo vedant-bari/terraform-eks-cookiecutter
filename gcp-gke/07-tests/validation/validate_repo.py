@@ -57,6 +57,9 @@ print(f"YAML files checked: {len(yaml_files)}")
 # Cross-file configuration contracts for the retained AMEX test environment.
 try:
     infra_cfg = parse_yaml(GKE / "01-config/clients/amex/prod/infra/prod.yaml") or {}
+    observability_cfg = parse_yaml(
+        GKE / "01-config/clients/amex/prod/monitoring-and-logging/prod.yaml"
+    ) or {}
     jenkins_cfg = parse_yaml(GKE / "01-config/clients/amex/prod/jenkins/prod.yaml") or {}
     infra_sc = (infra_cfg.get("storage") or {}).get("storageClassName")
     jenkins_sc = ((jenkins_cfg.get("controller") or {}).get("persistence") or {}).get("storageClass")
@@ -64,6 +67,14 @@ try:
           f"StorageClass mismatch: infra={infra_sc!r}, Jenkins={jenkins_sc!r}")
     check(bool((infra_cfg.get("apps") or {}).get("enabled")),
           "AMEX prod infra config must explicitly enable apps")
+    check(bool((observability_cfg.get("monitoring") or {}).get("alertmanager", {}).get("enabled")),
+          "AMEX observability config must enable Alertmanager")
+    check(bool((observability_cfg.get("tempo") or {}).get("persistence", {}).get("enabled")),
+          "AMEX observability config must enable persistent Tempo storage")
+    check(bool((observability_cfg.get("monitoring") or {}).get("additionalPrometheusRulesMap")),
+          "AMEX observability config must define workload alert rules")
+    check((observability_cfg.get("monitoring") or {}).get("grafana", {}).get("ingress", {}).get("enabled") is False,
+          "Grafana ingress must remain disabled by default")
 except Exception as exc:
     errors.append(f"AMEX config contract validation failed: {exc}")
 
@@ -137,7 +148,7 @@ print("Stable backend prefix mapping checked.")
 # 5. Live-unit structure, module source paths, and dependency paths.
 expected_live = [
     "00-bootstrap", "01-network", "02-gke", "03-artifact-registry",
-    "04-storage", "06-jenkins", "07-applications",
+    "04-storage", "05-monitoring", "06-jenkins", "07-applications",
 ]
 for layer in expected_live:
     hcl = LIVE / layer / "terragrunt.hcl"
@@ -158,6 +169,20 @@ for layer in expected_live:
         for dep in re.findall(r'"([^"]+)"', dep_block):
             check((hcl.parent / dep / "terragrunt.hcl").is_file(),
                   f"Broken dependency path {dep} in {hcl.relative_to(ROOT)}")
+monitoring_hcl = LIVE / "05-monitoring/terragrunt.hcl"
+if monitoring_hcl.is_file():
+    monitoring_source = monitoring_hcl.read_text(encoding="utf-8")
+    check("03-modules/05-monitoring" in monitoring_source,
+          "Monitoring live unit must reference the existing 05-monitoring module")
+    check("monitoring-and-logging" in monitoring_source,
+          "Monitoring live unit must load the environment observability YAML")
+    check('dependency "gke"' in monitoring_source,
+          "Monitoring live unit must depend on GKE outputs")
+monitoring_module = (GKE / "03-modules/05-monitoring/main.tf").read_text(encoding="utf-8")
+check('resource "helm_release" "tempo"' in monitoring_module,
+      "Monitoring module must deploy Tempo")
+check('chart            = "tempo"' in monitoring_module,
+      "Monitoring module must use the Tempo Helm chart")
 print("Live-unit/module/dependency paths checked.")
 
 # Validate source paths in scaffolding templates as well as generated live units.
@@ -182,6 +207,9 @@ deploy_script = (GKE / "02-scripts/deploy-env.sh").read_text(encoding="utf-8")
 check("terragrunt import" not in plan_script + apply_script + destroy_script + deploy_script,
       "Automatic/manual import command found in orchestration scripts")
 check("terragrunt run -- apply" not in plan_script, "Plan script must never apply")
+check("05-monitoring" in plan_script, "Plan script must include the monitoring layer")
+check("05-monitoring" in apply_script, "Apply script must include the monitoring layer")
+check("05-monitoring" in destroy_script, "Destroy script must include the monitoring layer")
 check("terragrunt run -- plan" not in apply_script, "Apply script must not regenerate plans")
 check("--destroy" in destroy_script and "mode=destroy" in destroy_script,
       "Destroy script is missing explicit opt-in or destroy-plan manifest checks")
