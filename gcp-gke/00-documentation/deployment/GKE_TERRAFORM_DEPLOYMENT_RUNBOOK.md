@@ -191,21 +191,205 @@ The script verifies the manifest, client/environment, branch, commit, and clean 
 
 Do not use `--auto-approve`. The saved-plan apply path intentionally has no unattended approval switch.
 
-## 7. Destruction (exceptional, separate approval)
+## 7. Full AMEX environment destroy-and-recreate lifecycle
 
-Default behavior only creates destroy plans and never destroys resources:
+This procedure is for an explicitly approved, complete teardown and recreation of the retained AMEX `prod` test environment. It covers all seven managed layers:
+
+- `01-network`
+- `02-gke`
+- `03-artifact-registry`
+- `04-storage`
+- `05-monitoring`
+- `06-jenkins`
+- `07-applications`
+
+The `00-bootstrap` layer and GCS state bucket are intentionally excluded. This is a destructive operation: application data, Filestore contents, PVC-backed data, registry images, and other resources may be deleted. Back up anything that must survive. Confirm the project, identity, region, and resource ownership before proceeding.
+
+### 7.1 Preflight
+
+Run from the repository root:
 
 ```bash
-bash gcp-gke/02-scripts/destroy-env.sh amex prod
+cd ~/workspace/nuclesteq/terraform-eks-cookiecutter
+
+git status --short --branch
+git branch --show-current
+git rev-parse HEAD
+gcloud auth list
+gcloud config get-value account
+gcloud config get-value project
+gcloud storage buckets describe gs://gcp-tf-state-amex-prod
 ```
 
-Review each saved destroy plan. Only with explicit separate approval may the operator apply them:
+Use branch `review/d1-d2-d3-d4-gke-hardening` for this tested workflow. The scripts require a clean Git working tree and bind saved plans to the current branch and commit. Resolve any local changes deliberately before continuing; do not discard a lock file or other local change just to satisfy the clean-tree check.
+
+Confirm that the configured project is `eks-terraform` and the region is `asia-south1`, or verify the current values in `gcp-gke/01-config/clients/amex/prod/infra/prod.yaml`. Do not proceed if the active identity/project or backend bucket is unexpected.
+
+### 7.2 Generate destroy plans (no resources are destroyed)
+
+Create a private plan directory and generate all seven destroy plans:
 
 ```bash
-bash gcp-gke/02-scripts/destroy-env.sh amex prod --destroy --plan-dir <reviewed-destroy-plan-directory>
+DESTROY_PLAN_DIR="$(mktemp -d /tmp/amex-prod-destroy.XXXXXX)"
+chmod 700 "$DESTROY_PLAN_DIR"
+echo "Destroy plan directory: $DESTROY_PLAN_DIR"
+
+bash gcp-gke/02-scripts/destroy-env.sh amex prod \
+  --plan-dir "$DESTROY_PLAN_DIR"
 ```
 
-The script requires a destroy-plan manifest, matching branch/commit/environment, and a per-layer typed confirmation. Bootstrap/state bucket is excluded. Never destroy a state bucket as part of an ordinary environment teardown.
+The script creates plans in reverse dependency order:
+
+`07-applications` → `06-jenkins` → `05-monitoring` → `04-storage` → `03-artifact-registry` → `02-gke` → `01-network`.
+
+It creates a manifest containing the client, environment, branch, commit, layer order, and plan checksums. It does not destroy resources unless the separate `--destroy` flag is supplied.
+
+### 7.3 Review every destroy plan
+
+Review all seven plans before authorizing destruction:
+
+```bash
+for layer in \
+  07-applications \
+  06-jenkins \
+  05-monitoring \
+  04-storage \
+  03-artifact-registry \
+  02-gke \
+  01-network
+do
+  echo "========== DESTROY PLAN: $layer =========="
+  terragrunt --working-dir \
+    "gcp-gke/04-live/clients/amex/prod/$layer" \
+    run -- show -no-color "$DESTROY_PLAN_DIR/$layer.tfplan"
+done
+```
+
+Check each plan for unexpected resources, shared infrastructure, IAM changes, and destructive data loss. Pay particular attention to Filestore, PVC-backed data, Artifact Registry images, GKE, and network resources. Do not proceed if a plan is missing, uses unexpected dependencies, or includes resources outside the intended test environment.
+
+### 7.4 Execute the reviewed destroy plans
+
+Only after reviewing all seven plans and obtaining explicit approval:
+
+```bash
+bash gcp-gke/02-scripts/destroy-env.sh amex prod \
+  --destroy \
+  --plan-dir "$DESTROY_PLAN_DIR"
+```
+
+The script verifies the manifest, branch/commit, and checksums for every saved plan before starting. It then displays each saved plan again and requires the operator to type `destroy` for each layer. It applies the exact saved destroy plans in reverse dependency order. If a layer fails or a plan is no longer valid, stop and investigate; do not skip ahead or regenerate plans without reviewing the new plan set.
+
+### 7.5 Verify teardown and preserve bootstrap
+
+After the destroy script completes, inspect the expected resource families:
+
+```bash
+gcloud container clusters list
+gcloud compute networks list
+gcloud artifacts repositories list --location=asia-south1
+gcloud filestore instances list --location=asia-south1
+gcloud storage buckets describe gs://gcp-tf-state-amex-prod
+```
+
+These are project/region inventory commands; they may also show resources not owned by this environment. Confirm the AMEX resources have been removed, investigate any remaining AMEX resources, and confirm the state bucket still exists and is accessible. Do not delete the bucket or run the bootstrap destroy operation.
+
+If teardown was incomplete, stop and resolve the failed layer before starting recreation.
+
+### 7.6 Recreate the environment: plan and apply one layer at a time
+
+After a full teardown, downstream layers may not yet have real dependency outputs. Therefore, do not generate one combined seven-layer deployment plan and assume every plan can use valid upstream outputs. Plan, review, and apply each layer in dependency order so each subsequent layer can consume the real outputs written by the preceding layer.
+
+Keep the same branch and commit used for each plan/apply pair. The scripts require a clean working tree and apply only plans tied to the current commit.
+
+For each layer below, repeat the following procedure, changing `LAYER` to the next layer in the listed order:
+
+1. Create a new empty private plan directory.
+2. Generate a plan for only that layer.
+3. Inspect the saved plan.
+4. If the plan is correct and approved, apply that exact plan using `apply-env.sh`.
+5. Confirm the layer completed successfully before moving to the next layer.
+
+Example for the first layer, network:
+
+```bash
+LAYER=01-network
+PLAN_DIR="$(mktemp -d "/tmp/amex-prod-${LAYER}.XXXXXX")"
+chmod 700 "$PLAN_DIR"
+echo "Plan directory: $PLAN_DIR"
+
+bash gcp-gke/02-scripts/plan-env.sh amex prod \
+  --layer "$LAYER" \
+  --plan-dir "$PLAN_DIR"
+
+terragrunt --working-dir \
+  "gcp-gke/04-live/clients/amex/prod/$LAYER" \
+  run -- show -no-color "$PLAN_DIR/$LAYER.tfplan"
+```
+
+After reviewing and approving the network plan, apply it:
+
+```bash
+bash gcp-gke/02-scripts/apply-env.sh amex prod \
+  --plan-dir "$PLAN_DIR" \
+  --approve
+```
+
+The apply script displays the saved plan and requires typing `yes`. It verifies the manifest, branch/commit, clean working tree, plan checksum, and dependency order before applying the exact saved plan.
+
+Repeat the same plan → review → apply procedure for these layers, in this exact order:
+
+1. `02-gke`
+2. `03-artifact-registry`
+3. `04-storage`
+4. `05-monitoring`
+5. `06-jenkins`
+6. `07-applications`
+
+For example, before planning GKE set `LAYER=02-gke` and create a **new empty** `PLAN_DIR`; do not reuse a plan directory from a previous layer. Keep each plan directory until its apply has succeeded and its evidence has been recorded. If a layer fails, stop, diagnose it, and re-plan that layer after the issue is corrected. If any source file is changed, the commit changes, so create fresh plans for the affected layer rather than applying plans from the old commit.
+
+### 7.7 Post-recreation validation
+
+After all seven layers are successfully applied, verify the cluster and workloads:
+
+```bash
+gcloud container clusters list
+kubectl get nodes
+kubectl get pods -A
+```
+
+Then validate each layer:
+
+| Layer | Minimum checks |
+|---|---|
+| Network | Expected VPC, subnets, routes and firewall rules exist |
+| GKE | Cluster and node pools are healthy; nodes are Ready |
+| Artifact Registry | Expected repository exists and required application images are available |
+| Storage | Filestore instance, StorageClasses and expected PVCs are healthy/Bound |
+| Monitoring | Prometheus, Grafana, Alertmanager, Loki, Alloy and Tempo are healthy; validate log/metric/trace ingestion |
+| Jenkins | Jenkins pods, service, PVC and access path are healthy |
+| Applications | Application pods/deployments/services are healthy; expected endpoints respond |
+
+For monitoring-specific checks, use the commands and Grafana/Prometheus/Loki/Tempo validation in Section 5.1. For Jenkins and applications, also verify that their expected load-balancer endpoints and integrations work; a Running pod alone does not prove end-to-end functionality.
+
+### 7.8 Important provider lock-file note
+
+The monitoring provider diagnostic on this review branch pins `hashicorp/helm` to `3.2.0`. A local lock file that still selects `3.3.0` will fail initialization with a provider constraint mismatch. In the monitoring live directory, refresh provider selection before planning when the lock file does not match the configured constraint:
+
+```bash
+cd gcp-gke/04-live/clients/amex/prod/05-monitoring
+terragrunt run -- init -upgrade
+grep -A 4 'registry.terraform.io/hashicorp/helm' .terraform.lock.hcl
+```
+
+Confirm the selected version is `3.2.0` before continuing. Treat any lock-file changes as intentional repository changes: do not delete or silently discard them. If the script's clean-working-tree check blocks the workflow, inspect the status and reconcile the lock file with the reviewed branch before generating plans. Do not change chart versions or official Helm repository URLs during this provider A/B test.
+
+### 7.9 Plan directories and evidence
+
+Keep destroy and deployment plan directories private and outside Git. Record the destroy plan directory, each per-layer deployment plan directory, Git commit, identity, project, timestamps, plan review, and typed confirmations. Saved plans and Terraform state can contain sensitive values; retain them only as long as needed and dispose of them securely according to your team's policy.
+
+The lifecycle scripts do not run bootstrap, delete the GCS state bucket, import resources, migrate state, scaffold configuration, or bypass the per-layer approval prompts.
+
+---
 
 ## 8. Backend state identity and structural changes
 
