@@ -21,7 +21,7 @@ locals {
   client_name               = local.path_parts[3]
   env_name                  = local.path_parts[4]
   observability_config_path = "${get_repo_root()}/gcp-gke/01-config/clients/${local.client_name}/${local.env_name}/monitoring-and-logging/${local.env_name}.yaml"
-  observability_config = yamldecode(file(local.observability_config_path))
+  observability_config      = yamldecode(file(local.observability_config_path))
 }
 
 inputs = {
