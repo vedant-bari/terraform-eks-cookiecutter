@@ -1,8 +1,32 @@
-# The namespace and its credentials are created as an explicit preflight step.
-# This keeps secret material out of Terraform state.
-data "kubernetes_namespace_v1" "monitoring" {
+# Namespace and credentials are first-class resources in this module.
+resource "kubernetes_namespace_v1" "monitoring" {
   metadata {
     name = "monitoring"
+  }
+}
+
+resource "kubernetes_secret_v1" "grafana_admin" {
+  metadata {
+    name      = var.observability_config.credentials.grafana.secret_name
+    namespace = kubernetes_namespace_v1.monitoring.metadata[0].name
+  }
+
+  type = "Opaque"
+  data = {
+    (var.observability_config.credentials.grafana.username_key) = var.grafana_admin_username
+    (var.observability_config.credentials.grafana.password_key) = var.grafana_admin_password
+  }
+}
+
+resource "kubernetes_secret_v1" "alertmanager_webhook" {
+  metadata {
+    name      = var.observability_config.credentials.alertmanager.secret_name
+    namespace = kubernetes_namespace_v1.monitoring.metadata[0].name
+  }
+
+  type = "Opaque"
+  data = {
+    (var.observability_config.credentials.alertmanager.webhook_key) = var.alertmanager_webhook_url
   }
 }
 
@@ -11,12 +35,13 @@ resource "helm_release" "prometheus_stack" {
   name            = "kube-prometheus-stack"
   repository      = "https://prometheus-community.github.io/helm-charts"
   chart           = "kube-prometheus-stack"
-  namespace       = data.kubernetes_namespace_v1.monitoring.metadata[0].name
+  namespace       = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout         = 1200
   wait            = true
   atomic          = true
   cleanup_on_fail = true
   values          = [yamlencode(var.observability_config.monitoring)]
+  depends_on      = [kubernetes_secret_v1.grafana_admin, kubernetes_secret_v1.alertmanager_webhook]
 }
 
 # Loki is the in-cluster log store. Keep it internal (ClusterIP) and persist data.
@@ -24,12 +49,13 @@ resource "helm_release" "loki" {
   name            = "loki"
   repository      = "https://grafana.github.io/helm-charts"
   chart           = "loki"
-  namespace       = data.kubernetes_namespace_v1.monitoring.metadata[0].name
+  namespace       = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout         = 1200
   wait            = true
   atomic          = true
   cleanup_on_fail = true
   values          = [yamlencode(var.observability_config.loki)]
+  depends_on      = [kubernetes_namespace_v1.monitoring]
 }
 
 # Grafana Alloy runs as a DaemonSet and collects Kubernetes container logs.
@@ -37,7 +63,7 @@ resource "helm_release" "alloy" {
   name            = "alloy"
   repository      = "https://grafana.github.io/helm-charts"
   chart           = "alloy"
-  namespace       = data.kubernetes_namespace_v1.monitoring.metadata[0].name
+  namespace       = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout         = 1200
   wait            = true
   atomic          = true
@@ -53,7 +79,7 @@ resource "helm_release" "tempo" {
   repository      = "https://grafana-community.github.io/helm-charts"
   chart           = "tempo"
   version         = var.observability_config.chart_versions.tempo
-  namespace       = data.kubernetes_namespace_v1.monitoring.metadata[0].name
+  namespace       = kubernetes_namespace_v1.monitoring.metadata[0].name
   timeout         = 1200
   wait            = true
   atomic          = true
