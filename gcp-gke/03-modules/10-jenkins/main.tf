@@ -80,7 +80,7 @@ resource "helm_release" "jenkins" {
   chart            = "jenkins"
   namespace        = kubernetes_namespace_v1.jenkins.metadata[0].name
   create_namespace = true
-  version          = "jenkins-5.11.0"
+  version          = "jenkins-5.10.0"
   timeout          = 1200
 
   values = [
