@@ -1,5 +1,18 @@
 # Open-source observability stack for the AMEX GKE test environment.
 # Grafana is intentionally internal-only; access it through kubectl port-forward.
+# Secret values are read from the operator environment and are never committed here.
+credentials:
+  grafana:
+    username: admin
+    password_env: GRAFANA_ADMIN_PASSWORD
+    secret_name: grafana-admin-credentials
+    username_key: admin-user
+    password_key: admin-password
+  alertmanager:
+    webhook_url_env: ALERTMANAGER_WEBHOOK_URL
+    secret_name: alertmanager-webhook
+    webhook_key: webhook_url
+
 chart_versions:
   tempo: "3.2.1"
 
