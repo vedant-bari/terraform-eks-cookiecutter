@@ -31,10 +31,11 @@ Active live units:
 3. `02-gke`
 4. `03-artifact-registry`
 5. `04-storage`
+5. `05-monitoring` — Prometheus, Grafana, Alertmanager, Loki, Alloy and Tempo.
 6. `06-jenkins`
 7. `07-applications`
 
-`05-monitoring` is reserved and is not part of the retained AMEX sequence. `17-tmp-backup` is historical and must remain untouched.
+The AMEX monitoring layer is deployed after storage and before Jenkins in the orchestration order. Existing Jenkins and application layers are not changed by a monitoring-only plan. `17-tmp-backup` is historical and must remain untouched.
 
 ## 3. Prerequisites and preflight
 
@@ -95,6 +96,94 @@ terragrunt --working-dir gcp-gke/04-live/clients/amex/prod/01-network run -- sho
 
 Inspect changes, replacements, deletions, IAM changes, network changes, GKE version/node-pool changes, and storage/registry changes. A plan that relies on mocks is not deployable evidence. Resolve mock-only dependencies before any approval to apply.
 
+### 5.1 Deploy the observability layer only
+
+The monitoring module consumes the GKE cluster outputs and uses the existing `standard-rwo` StorageClass for persistent data. It deploys:
+
+- Prometheus and kube-state-metrics/node-exporter for cluster and workload metrics.
+- Grafana with Prometheus, Loki and Tempo data sources; ingress remains disabled.
+- Alertmanager with workload alert rules and a webhook receiver.
+- Loki single-binary storage and Grafana Alloy DaemonSet for Kubernetes pod/event logs.
+- Tempo single-binary mode with OTLP gRPC/HTTP receivers for application traces.
+
+This is a small-cluster/test configuration: one replica for each stateful component, local PVC-backed Loki/Tempo storage and seven-day retention. It is not an HA or long-term archival design.
+
+Create the namespace and Kubernetes secrets before planning. This is an explicit cluster preflight and keeps credentials out of Terraform state:
+
+```bash
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+read -rsp "Grafana admin password: " GRAFANA_PASSWORD; echo
+kubectl create secret generic grafana-admin-credentials -n monitoring \\
+  --from-literal=admin-user=admin \\
+  --from-literal=admin-password="$GRAFANA_PASSWORD" \\
+  --dry-run=client -o yaml | kubectl apply -f -
+unset GRAFANA_PASSWORD
+
+read -rsp "Alertmanager webhook URL: " ALERT_WEBHOOK_URL; echo
+kubectl create secret generic alertmanager-webhook -n monitoring \\
+  --from-literal=webhook_url="$ALERT_WEBHOOK_URL" \\
+  --dry-run=client -o yaml | kubectl apply -f -
+unset ALERT_WEBHOOK_URL
+```
+
+Use a receiver URL supported by your notification service. Do not commit credentials or paste them into Terraform variables. The monitoring module reads the existing namespace and secrets; it does not manage their secret values.
+
+Validate the repository first:
+
+```bash
+bash gcp-gke/07-tests/run_tests.sh
+```
+
+Then create a monitoring-only plan. Do not plan or apply the other already-deployed layers:
+
+```bash
+PLAN_DIR="$(mktemp -d /tmp/amex-monitoring.XXXXXX)"
+chmod 700 "$PLAN_DIR"
+bash gcp-gke/02-scripts/plan-env.sh amex prod \\
+  --layer 05-monitoring --plan-dir "$PLAN_DIR"
+
+terragrunt --working-dir gcp-gke/04-live/clients/amex/prod/05-monitoring \\
+  run -- show -no-color "$PLAN_DIR/05-monitoring.tfplan"
+```
+
+Review the saved plan for only the four Helm releases and expected namespace data lookup. Investigate unexpected replacements, public load balancers/ingress, IAM changes, or unrelated infrastructure changes. Apply only after explicit approval:
+
+```bash
+bash gcp-gke/02-scripts/apply-env.sh amex prod \\
+  --plan-dir "$PLAN_DIR" --approve
+```
+
+The script displays the saved plan again and requires typing `yes`. This applies only the monitoring layer recorded in the manifest.
+
+After deployment, validate:
+
+```bash
+kubectl get pods -n monitoring -o wide
+kubectl get pvc -n monitoring
+kubectl get svc -n monitoring
+kubectl get prometheusrules -n monitoring
+kubectl get prometheus,alertmanager -n monitoring
+kubectl get daemonset -n monitoring
+```
+
+Access Grafana locally (no public ingress):
+
+```bash
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+```
+
+Open `http://localhost:3000` and sign in using the credentials stored in `grafana-admin-credentials`. Confirm Prometheus, Loki and Tempo data sources are healthy. Check Prometheus Alerts for the configured crash-loop and unavailable-replica rules; send a test alert to validate the webhook receiver.
+
+Applications must be instrumented with an OpenTelemetry SDK/agent to generate traces. Configure their OTLP exporter to use the in-cluster endpoint:
+
+- gRPC: `tempo.monitoring.svc.cluster.local:4317`
+- HTTP/protobuf: `http://tempo.monitoring.svc.cluster.local:4318`
+
+Set `OTEL_SERVICE_NAME` and the SDK's OTLP exporter variables for the language/runtime. The Tempo service is internal-only; do not expose it directly because Tempo does not provide built-in authentication. Confirm traces in Grafana Explore using the Tempo data source. Logs are collected automatically by Alloy; metrics are scraped by Prometheus.
+
+If the monitoring plan or deployment fails, stop and inspect the Helm release status/events before retrying. Do not run the full environment plan as a shortcut.
+
 ## 6. Apply reviewed saved plans
 
 Only after every plan has been reviewed and explicitly approved, run:
@@ -131,7 +220,7 @@ The active root `gcp-gke/04-live/root.hcl` maps directory names to stable logica
 gcp-gke/<client>/<environment>/<logical-layer>/terraform.tfstate
 ```
 
-The logical keys are `bootstrap`, `network`, `gke`, `artifact-registry`, `storage`, `monitoring`, `jenkins`, and `applications`. Preserve them across folder renames. Before/after backend bucket and prefix values must match for a folder-only refactor.
+The logical keys are `bootstrap`, `network`, `gke`, `artifact-registry`, `storage`, `monitoring`, `jenkins`, and `applications`. The monitoring state prefix remains `gcp-gke/amex/prod/monitoring/terraform.tfstate`. Preserve them across folder renames. Before/after backend bucket and prefix values must match for a folder-only refactor.
 
 Follow `gcp-gke/00-documentation/deployment/STATE_LAYOUT_MIGRATION.md` for the required inventory, reference updates, backend-prefix comparison, and baseline-plan equivalence checks. Do not combine structural renames with infrastructure fixes in one unreviewable change.
 
