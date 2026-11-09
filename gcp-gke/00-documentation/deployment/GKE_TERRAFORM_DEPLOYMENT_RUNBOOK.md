@@ -102,18 +102,17 @@ The monitoring module consumes the GKE cluster outputs and uses the existing `st
 
 - Prometheus and kube-state-metrics/node-exporter for cluster and workload metrics.
 - Grafana with Prometheus, Loki and Tempo data sources; ingress remains disabled.
-- Alertmanager with workload alert rules and a webhook receiver.
+- Alertmanager with workload alert rules and a no-destination default receiver; external notifications are opt-in.
 - Loki single-binary storage and Grafana Alloy DaemonSet for Kubernetes pod/event logs.
 - Tempo single-binary mode with OTLP gRPC/HTTP receivers for application traces.
 
 This is a small-cluster/test configuration: one replica for each stateful component, local PVC-backed Loki/Tempo storage and seven-day retention. It is not an HA or long-term archival design.
 
-The monitoring module manages the `monitoring` namespace and creates both Kubernetes Secrets before installing Helm releases. No manual namespace or Secret creation is required.
+The monitoring module manages the `monitoring` namespace and creates the Grafana bootstrap Secret before installing Helm releases. No manual namespace or Secret creation is required. Alertmanager does not require a webhook URL for deployment: alerts are evaluated and visible in the Prometheus/Alertmanager interfaces, but no external notifications are sent until a destination is configured.
 
 The environment file `01-config/clients/amex/prod/monitoring-and-logging/prod.yaml` defines:
 - Grafana administrator username, Secret name and key names.
 - Environment-variable name for the Grafana password (`GRAFANA_ADMIN_PASSWORD`).
-- Alertmanager Secret name/key and environment-variable name (`ALERTMANAGER_WEBHOOK_URL`).
 
 Keep the actual secret values out of Git. Export them in the same terminal session used for planning and applying:
 
@@ -121,11 +120,9 @@ Keep the actual secret values out of Git. Export them in the same terminal sessi
 read -rsp "Grafana admin password (12+ characters): " GRAFANA_ADMIN_PASSWORD; echo
 export GRAFANA_ADMIN_PASSWORD
 
-read -rsp "Alertmanager webhook URL: " ALERTMANAGER_WEBHOOK_URL; echo
-export ALERTMANAGER_WEBHOOK_URL
 ```
 
-The module writes these values into Kubernetes Secrets. **Terraform state will contain the Secret data even though the variables are marked sensitive.** Protect the GCS state bucket with least-privilege IAM, encryption and appropriate retention; keep saved plan files private. For environments where state operators must not be able to read these credentials, use an external secret manager/External Secrets integration instead of Terraform-managed Kubernetes Secrets.
+The module writes the Grafana credentials into a Kubernetes Secret. **Terraform state will contain this Secret data even though the variable is marked sensitive.** Protect the GCS state bucket with least-privilege IAM, encryption and appropriate retention; keep saved plan files private. For environments where state operators must not be able to read this credential, use an external secret manager/External Secrets integration instead of Terraform-managed Kubernetes Secrets.
 
 Validate the repository first:
 
@@ -145,7 +142,7 @@ terragrunt --working-dir gcp-gke/04-live/clients/amex/prod/05-monitoring \\
   run -- show -no-color "$PLAN_DIR/05-monitoring.tfplan"
 ```
 
-Review the saved plan for the namespace, two Kubernetes Secrets and four Helm releases. Confirm no unrelated infrastructure resources are changed. Investigate unexpected replacements, public load balancers/ingress, IAM changes, or unrelated infrastructure changes. Apply only after explicit approval:
+Review the saved plan for the namespace, Grafana Secret and four Helm releases. Confirm no unrelated infrastructure resources are changed. Investigate unexpected replacements, public load balancers/ingress, IAM changes, or unrelated infrastructure changes. Apply only after explicit approval:
 
 ```bash
 bash gcp-gke/02-scripts/apply-env.sh amex prod \\
@@ -171,7 +168,7 @@ Access Grafana locally (no public ingress):
 kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
 ```
 
-Open `http://localhost:3000` and sign in using the credentials stored in `grafana-admin-credentials`. Confirm Prometheus, Loki and Tempo data sources are healthy. Check Prometheus Alerts for the configured crash-loop and unavailable-replica rules; send a test alert to validate the webhook receiver.
+Open `http://localhost:3000` and sign in using the credentials stored in `grafana-admin-credentials`. Confirm Prometheus, Loki and Tempo data sources are healthy. Check Prometheus Alerts and Alertmanager for the configured crash-loop and unavailable-replica rules. External notifications are intentionally disabled by default; when a notification destination is selected, add its supported Alertmanager receiver configuration and credentials through a secret manager.
 
 Applications must be instrumented with an OpenTelemetry SDK/agent to generate traces. Configure their OTLP exporter to use the in-cluster endpoint:
 
