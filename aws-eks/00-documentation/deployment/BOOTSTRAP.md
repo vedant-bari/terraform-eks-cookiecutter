@@ -127,6 +127,22 @@ kubectl -n kube-system logs deploy/cluster-autoscaler | grep -i "scale-up"
 kubectl delete ingress echo && kubectl delete svc,deployment echo
 ```
 
+## Monitoring (06-monitoring)
+
+The Grafana admin password comes from the environment, as on GCP. Export it before any plan that includes `06-monitoring`. It must be at least 12 characters:
+
+```bash
+export GRAFANA_ADMIN_PASSWORD='<at least 12 characters>'
+```
+
+Verify:
+
+```bash
+kubectl -n monitoring get pods,pvc          # 4 PVCs on gp3, all Bound
+kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
+# http://localhost:3000 -> Connections > Data sources: Prometheus, Loki, Tempo
+```
+
 ## Destroy
 
 `destroy-env.sh` destroys layers in reverse order and never touches `00-bootstrap`.
