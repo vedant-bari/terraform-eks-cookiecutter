@@ -15,15 +15,16 @@ Editing files never touches cloud resources; only running Terragrunt does. Do no
 
 ## aws-eks
 
-The old half-migrated tree was removed (recoverable from git history). The new tree mirrors `gcp-gke/`'s layout, so read [aws-eks/README.md](aws-eks/README.md) first. Phases 0 (bootstrap, scripts, tooling), 1 (`01-network` → `03-modules/02-vpc`) and 2 (`02-eks` → `03-modules/04-eks`) exist so far.
+The old half-migrated tree was removed (recoverable from git history). The new tree mirrors `gcp-gke/`'s layout, so read [aws-eks/README.md](aws-eks/README.md) first. Phases 0 (bootstrap, scripts, tooling), 1 (`01-network` → `03-modules/02-vpc`) 2 (`02-eks` → `03-modules/04-eks`) and 3 (`03-ecr` → `11-ecr`, `04-storage` → `07-storage-class`) exist so far.
 
 **Config and generated files**
-- **Config:** `aws-eks/01-config/clients/<client>/<env>/infra/<env>.yaml`, with keys `aws.{account_id,region,profile,assume_deploy_role,tags}`, `bootstrap.*`, `vpc.*`, `eks.*` and `budget.*`. Each block is exposed by `root.hcl` as `config.<block>`.
+- **Config:** `aws-eks/01-config/clients/<client>/<env>/infra/<env>.yaml`, with keys `aws.{account_id,region,profile,assume_deploy_role,tags}`, `bootstrap.*`, `vpc.*`, `eks.*`, `ecr.*`, `storage.*` and `budget.*`. Each block is exposed by `root.hcl` as `config.<block>`.
 - **Missing or invalid YAML is a hard error** in `aws-eks/04-live/root.hcl`. There is no `try(..., {})` fallback.
 - **`root.hcl` generates `provider.tf` as well as `backend.tf`.**
   - The S3 backend uses `use_lockfile`. Its key is `aws-eks/<client>/<env>/<layer-key>/terraform.tfstate`, taken from the `state_layer_keys` map.
   - The aws provider gets `allowed_account_ids`, `default_tags`, and `assume_role` into the deploy role created by `00-bootstrap`; `00-bootstrap` itself doesn't assume it.
-- **Modules must not declare `provider "aws"`.**
+- **Modules must not declare `provider "aws"`.** Modules that talk to the cluster declare their own `kubernetes`/`helm` provider with exec auth (`aws eks get-token --role-arn <deploy role>`), because EKS tokens last 15 minutes.
+- **ECR repositories are derived** from `apps/*.yaml` files with `ecr.enabled: true` (basename of `image.repository`), plus `ecr.additional_repositories`.
 - **Names are derived:**
   - prefix `<client>-<env>`
   - state bucket `<client>-<env>-tfstate-<account_id>`

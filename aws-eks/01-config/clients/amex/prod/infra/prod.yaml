@@ -131,6 +131,34 @@ eks:
     aws-efs-csi-driver: ""
     amazon-cloudwatch-observability: ""
 
+# Container registry (03-ecr -> 03-modules/11-ecr).
+# GCP: one Artifact Registry repo for all images. ECR: one repository per image,
+# named <client>-<env>/<image>. Repositories come from every apps/*.yaml with
+# ecr.enabled: true (basename of image.repository), plus additional_repositories.
+ecr:
+  additional_repositories: []      # Extra image names not tied to an app YAML
+  image_tag_mutability: "MUTABLE"  # The pipeline pushes :latest
+  scan_on_push: true               # Basic scanning, free
+  force_delete: true               # Repos (and images) go with the environment, like GCP
+  kms_key_arn: ""                  # "" = AES256
+  lifecycle:
+    keep_last_images: 30
+    untagged_expire_days: 7
+
+# Storage classes (04-storage -> 03-modules/07-storage-class).
+storage:
+  block:                           # GCP standard-rwo; cluster default
+    storage_class_name: "gp3"
+    kms_key_arn: ""                # "" = account default EBS key (aws/ebs)
+  rwx:                             # GCP Filestore class amex-prod-rwx (Jenkins home, app /var/log)
+    storage_class_name: ""         # Default: <client>-<env>-rwx (same name as GCP)
+    throughput_mode: "elastic"     # Pay per use
+    transition_to_ia: ""           # e.g. AFTER_30_DAYS; "" = never
+    backup_enabled: false          # GCP parity (no Filestore backups); true = daily AWS Backup
+    uid: 1000                      # EFS ignores fsGroup; must match the workload user (Jenkins = 1000)
+    gid: 1000
+    directory_perms: "700"
+
 # Cost controls. The aws_budgets_budget resource is added in Phase 8.
 budget:
   monthly_limit_usd: "CHANGE_ME"

@@ -84,6 +84,25 @@ kubectl get pods -n kube-system      # aws-node, coredns, kube-proxy, eks-pod-id
 kubectl get node -o jsonpath='{.items[0].status.allocatable.pods}'   # 110 with prefix delegation
 ```
 
+## Verify storage (after 04-storage)
+
+```bash
+kubectl get sc        # gp3 (default) and <client>-<env>-rwx (efs.csi.aws.com)
+kubectl apply -f - <<'YAML'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: rwx-test, namespace: default }
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: amex-prod-rwx
+  resources: { requests: { storage: 1Gi } }
+YAML
+kubectl get pvc rwx-test        # Bound within seconds (an EFS access point is created)
+kubectl delete pvc rwx-test     # Removes the access point
+```
+
+A gp3 PVC stays `Pending` until a pod uses it (`WaitForFirstConsumer`), which is expected.
+
 ## Destroy
 
 `destroy-env.sh` destroys layers in reverse order and never touches `00-bootstrap`.

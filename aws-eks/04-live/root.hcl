@@ -71,9 +71,11 @@ locals {
       deploy_role_arn   = local.deploy_role_arn
     })
 
-    budget = try(local.yaml_data.budget, {})
-    vpc    = try(local.yaml_data.vpc, {})
-    eks    = merge(local.eks, { cluster_name = local.eks_cluster_name })
+    budget  = try(local.yaml_data.budget, {})
+    vpc     = try(local.yaml_data.vpc, {})
+    eks     = merge(local.eks, { cluster_name = local.eks_cluster_name })
+    ecr     = try(local.yaml_data.ecr, {})
+    storage = try(local.yaml_data.storage, {})
   }
 
   # Stable logical state identity; preserve these keys across live-directory renames.
