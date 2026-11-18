@@ -15,10 +15,10 @@ Editing files never touches cloud resources; only running Terragrunt does. Do no
 
 ## aws-eks
 
-The old half-migrated tree was removed (recoverable from git history). The new tree mirrors `gcp-gke/`'s layout, so read [aws-eks/README.md](aws-eks/README.md) first. Phases 0 (bootstrap, scripts, tooling) and 1 (`01-network` → `03-modules/02-vpc`) exist so far.
+The old half-migrated tree was removed (recoverable from git history). The new tree mirrors `gcp-gke/`'s layout, so read [aws-eks/README.md](aws-eks/README.md) first. Phases 0 (bootstrap, scripts, tooling), 1 (`01-network` → `03-modules/02-vpc`) and 2 (`02-eks` → `03-modules/04-eks`) exist so far.
 
 **Config and generated files**
-- **Config:** `aws-eks/01-config/clients/<client>/<env>/infra/<env>.yaml`, with keys `aws.{account_id,region,profile,assume_deploy_role,tags}`, `bootstrap.*`, `vpc.*` and `budget.*`. Each block is exposed by `root.hcl` as `config.<block>`.
+- **Config:** `aws-eks/01-config/clients/<client>/<env>/infra/<env>.yaml`, with keys `aws.{account_id,region,profile,assume_deploy_role,tags}`, `bootstrap.*`, `vpc.*`, `eks.*` and `budget.*`. Each block is exposed by `root.hcl` as `config.<block>`.
 - **Missing or invalid YAML is a hard error** in `aws-eks/04-live/root.hcl`. There is no `try(..., {})` fallback.
 - **`root.hcl` generates `provider.tf` as well as `backend.tf`.**
   - The S3 backend uses `use_lockfile`. Its key is `aws-eks/<client>/<env>/<layer-key>/terraform.tfstate`, taken from the `state_layer_keys` map.
@@ -28,6 +28,9 @@ The old half-migrated tree was removed (recoverable from git history). The new t
   - prefix `<client>-<env>`
   - state bucket `<client>-<env>-tfstate-<account_id>`
   - deploy role `<client>-<env>-terraform-deploy`
+  - EKS cluster `<client>-<env>-eks`
+
+**Live units that depend on another layer** allow mock outputs for `init`, `validate` and `plan`, so a fresh environment can be previewed.
 
 **Offline validation:** set `AWS_EKS_OFFLINE=true`. It swaps in a throwaway local backend:
 ```
@@ -35,7 +38,8 @@ AWS_EKS_OFFLINE=true terragrunt --working-dir aws-eks/04-live/clients/amex/prod/
 ```
 
 **Scripts** (all in `aws-eks/02-scripts/`):
-- **Shared helpers:** `lib/common.sh` holds the `ALL_LAYERS` order, the config loader, and the account and bucket checks. `lib/read_env_config.py` must derive names exactly as `root.hcl` does.
+- **Shared helpers:** `lib/common.sh` holds the `ALL_LAYERS` order, the config loader, and the account and bucket checks. `lib/read_env_config.py` must derive names (bucket, cluster, deploy role) exactly as `root.hcl` does.
+- **`destroy-env.sh`** refuses to destroy the cluster layers while Ingresses, LoadBalancer Services or PVCs remain (they own AWS resources outside Terraform state).
 - **`plan-env.sh` / `apply-env.sh` / `destroy-env.sh`** are ports of the gcp-gke scripts: saved plans, a manifest with the account ID, SHA-256 checks, type-to-confirm. They skip layers that don't exist yet.
 - **`deploy-env.sh`** works differently from gcp-gke: it plans → shows → confirms → applies one layer at a time, for fresh environments.
 - **`bootstrap/01-create-bootstrap-bucket.sh <client> <env>`** reads everything from the YAML. `00-bootstrap` then adopts the bucket through an `import` block.

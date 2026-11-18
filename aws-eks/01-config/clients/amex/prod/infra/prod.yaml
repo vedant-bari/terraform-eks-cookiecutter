@@ -73,6 +73,64 @@ vpc:
     enabled: false
     services: ["ecr.api", "ecr.dkr", "sts", "secretsmanager", "logs"]
 
+# EKS cluster (02-eks -> 03-modules/04-eks).
+# Counterpart of the GCP gke: block. GCP behaviour is the default; class-B
+# hardening toggles are marked.
+eks:
+  cluster_name: ""                 # Default: <client>-<env>-eks
+  # Kubernetes minor. 1.34 is the oldest in standard support but it ends
+  # 2026-12-02 and STANDARD would auto-upgrade it within weeks, so 1.35
+  # (standard support until 2027-03-27, same minor as GCP) is used.
+  # Check: aws eks describe-cluster-versions --region <region>
+  kubernetes_version: "1.35"
+  upgrade_support_type: "STANDARD" # STANDARD = no extended-support charge; EKS auto-upgrades at end of standard support
+  deletion_protection: false       # GCP parity
+  service_ipv4_cidr: "10.2.0.0/20" # Same as the GCP services range; must not overlap vpc.cidr
+  endpoint:
+    public_access_cidrs: ["0.0.0.0/0"]  # Class B: replace with an office/VPN allowlist
+    private_only: false                 # Class B: true needs the SSM bastion or a VPN
+  # Extra cluster admins (the deploy role is always admin). For SSO use the
+  # role ARN without the aws-reserved/sso.amazonaws.com/ path, e.g.
+  # arn:aws:iam::<account>:role/AWSReservedSSO_AdministratorAccess_<id>
+  admin_principal_arns: []
+  enable_irsa: false               # Everything uses Pod Identity
+  control_plane_logs:
+    types: ["api", "audit", "authenticator"]
+    retention_days: 7
+  node_azs: ["ap-south-1a"]        # GCP parity: one zone. Class B: list all vpc.azs
+  node_group:                      # Applied per node AZ
+    name: "general"
+    instance_types: ["m7i.large"]  # 2 vCPU / 8 GiB, like e2-standard-2. Cheaper: t3a.large
+    ami_type: "AL2023_x86_64_STANDARD"
+    capacity_type: "ON_DEMAND"
+    disk_size_gb: 100              # gp3, encrypted
+    min_size: 2
+    max_size: 10
+    desired_size: 3                # GCP node_count; Cluster Autoscaler adjusts it afterwards
+    max_unavailable: 1
+    ami_release_version: ""        # "" = latest AMI for the version (like GKE node auto-upgrade); pin to freeze
+    labels: {}
+  max_pods: 110                    # Requires vpc_cni.prefix_delegation
+  vpc_cni:
+    prefix_delegation: true
+  network_policy:
+    enabled: false                 # Class B: VPC CNI network policy agent
+  container_insights:
+    enabled: false                 # Class B: amazon-cloudwatch-observability add-on (extra cost)
+  # Pin add-on versions here. "" = the AWS default version for kubernetes_version
+  # when the add-on is created. List versions with:
+  #   aws eks describe-addon-versions --kubernetes-version 1.35 --addon-name <name> \
+  #     --query 'addons[0].addonVersions[].addonVersion'
+  addon_versions:
+    vpc-cni: ""
+    eks-pod-identity-agent: ""
+    coredns: ""
+    kube-proxy: ""
+    metrics-server: ""
+    aws-ebs-csi-driver: ""
+    aws-efs-csi-driver: ""
+    amazon-cloudwatch-observability: ""
+
 # Cost controls. The aws_budgets_budget resource is added in Phase 8.
 budget:
   monthly_limit_usd: "CHANGE_ME"

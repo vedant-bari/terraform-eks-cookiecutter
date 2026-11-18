@@ -41,7 +41,15 @@ locals {
   deploy_role_arn = "arn:aws:iam::${local.account_id}:role/${local.deploy_role_name}"
 
   # 00-bootstrap creates the deploy role, so it always runs with the caller's own credentials.
-  assume_deploy_role = try(local.yaml_data.aws.assume_deploy_role, true) && local.layer_name != "00-bootstrap"
+  assume_deploy_role_cfg = try(local.yaml_data.aws.assume_deploy_role, true)
+  assume_deploy_role     = local.assume_deploy_role_cfg && local.layer_name != "00-bootstrap"
+
+  eks = try(local.yaml_data.eks, {})
+  eks_cluster_name = (
+    try(local.eks.cluster_name, "") != ""
+    ? local.eks.cluster_name
+    : "${local.name_prefix}-eks"
+  )
 
   config = {
     client      = local.client_name
@@ -53,6 +61,8 @@ locals {
       region     = local.region
       profile    = local.profile
       tags       = try(local.yaml_data.aws.tags, {})
+      # Config value, not the per-layer effective one (bootstrap never assumes).
+      assume_deploy_role = local.assume_deploy_role_cfg
     }
 
     bootstrap = merge(local.bootstrap, {
@@ -63,6 +73,7 @@ locals {
 
     budget = try(local.yaml_data.budget, {})
     vpc    = try(local.yaml_data.vpc, {})
+    eks    = merge(local.eks, { cluster_name = local.eks_cluster_name })
   }
 
   # Stable logical state identity; preserve these keys across live-directory renames.

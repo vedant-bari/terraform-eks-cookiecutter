@@ -29,7 +29,8 @@ layer_index() {
   return 1
 }
 
-# Sets LIVE_DIR, CONFIG_FILE, ACCOUNT_ID, REGION, PROFILE, STATE_BUCKET, AWS_ARGS.
+# Sets LIVE_DIR, CONFIG_FILE, ACCOUNT_ID, REGION, PROFILE, STATE_BUCKET,
+# CLUSTER_NAME, DEPLOY_ROLE_ARN and AWS_ARGS.
 load_env_config() {
   LIVE_DIR="${AWS_EKS_DIR}/04-live/clients/${CLIENT}/${ENV}"
   CONFIG_FILE="${AWS_EKS_DIR}/01-config/clients/${CLIENT}/${ENV}/infra/${ENV}.yaml"
@@ -43,6 +44,8 @@ load_env_config() {
   REGION="${CFG[1]}"
   PROFILE="${CFG[2]}"
   STATE_BUCKET="${CFG[3]}"
+  CLUSTER_NAME="${CFG[4]}"
+  DEPLOY_ROLE_ARN="${CFG[5]:-}"
   AWS_ARGS=(--region "$REGION")
   [[ -n "$PROFILE" ]] && AWS_ARGS+=(--profile "$PROFILE")
   return 0
@@ -86,4 +89,43 @@ existing_layers() {
       echo "Note: live layer ${layer} does not exist yet; skipping." >&2
     fi
   done
+}
+
+# R2 guard. Load balancers (from Ingress / LoadBalancer Services) and EBS/EFS
+# volumes (from PVCs) are created by in-cluster controllers and are not in
+# Terraform state. Destroying the controllers or the cluster first orphans
+# them, and the VPC destroy then hangs on their ENIs. Fail if any remain.
+# Passes when the cluster does not exist.
+assert_cluster_has_no_aws_backed_objects() {
+  if ! aws "${AWS_ARGS[@]}" eks describe-cluster --name "$CLUSTER_NAME" >/dev/null 2>&1; then
+    echo "Cluster $CLUSTER_NAME not found; skipping the leftover load balancer/volume check."
+    return 0
+  fi
+  command -v kubectl >/dev/null || { echo "kubectl is required for the pre-destroy check" >&2; return 1; }
+
+  local kubeconfig rc=0 ingresses services pvcs
+  kubeconfig="$(mktemp)"
+  local role_args=()
+  [[ -n "${DEPLOY_ROLE_ARN:-}" ]] && role_args=(--role-arn "$DEPLOY_ROLE_ARN")
+  aws "${AWS_ARGS[@]}" eks update-kubeconfig --name "$CLUSTER_NAME" --kubeconfig "$kubeconfig" "${role_args[@]}" >/dev/null || { rm -f "$kubeconfig"; return 1; }
+
+  ingresses="$(kubectl --kubeconfig "$kubeconfig" get ingress -A --no-headers -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name 2>&1)" || rc=1
+  services="$(kubectl --kubeconfig "$kubeconfig" get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>&1)" || rc=1
+  pvcs="$(kubectl --kubeconfig "$kubeconfig" get pvc -A --no-headers -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name 2>&1)" || rc=1
+  rm -f "$kubeconfig"
+  if (( rc != 0 )); then
+    echo "Could not list cluster objects for the pre-destroy check:" >&2
+    printf '%s\n' "$ingresses" "$services" "$pvcs" >&2
+    return 1
+  fi
+
+  if [[ -n "$ingresses$services$pvcs" ]]; then
+    echo "Refusing to destroy: these objects still own AWS resources outside Terraform state." >&2
+    [[ -n "$ingresses" ]] && printf 'Ingresses (ALBs):\n%s\n' "$ingresses" >&2
+    [[ -n "$services" ]] && printf 'LoadBalancer Services (NLB/CLB):\n%s\n' "$services" >&2
+    [[ -n "$pvcs" ]] && printf 'PVCs (EBS volumes / EFS access points):\n%s\n' "$pvcs" >&2
+    echo "Delete them (kubectl delete ingress|svc|pvc -n <ns> <name>), wait for the load balancers and volumes to go, then re-run." >&2
+    return 1
+  fi
+  echo "Pre-destroy check passed: no Ingresses, LoadBalancer Services or PVCs remain."
 }

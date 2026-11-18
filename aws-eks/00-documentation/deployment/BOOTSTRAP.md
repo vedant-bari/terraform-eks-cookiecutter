@@ -68,3 +68,33 @@ AWS_EKS_OFFLINE=true terragrunt --working-dir aws-eks/04-live/clients/<client>/<
 ```
 
 Never run `plan` or `apply` in offline mode.
+
+## Access the cluster (after 02-eks)
+
+Cluster admin access uses EKS access entries (`authentication_mode = API`); there is no `aws-auth` ConfigMap.
+
+- **Admins:** the deploy role is always a cluster admin. To add people, list their IAM role ARNs in `eks.admin_principal_arns`. For an SSO role, leave out the `aws-reserved/sso.amazonaws.com/` path.
+- **Using the deploy role:** if you aren't in that list, set up kubectl through the deploy role:
+
+```bash
+aws eks update-kubeconfig --name <client>-<env>-eks --region <region> --profile <profile> \
+  --role-arn arn:aws:iam::<account_id>:role/<client>-<env>-terraform-deploy
+kubectl get nodes -o wide            # nodes in the private subnets of eks.node_azs
+kubectl get pods -n kube-system      # aws-node, coredns, kube-proxy, eks-pod-identity-agent, metrics-server, ebs/efs CSI
+kubectl get node -o jsonpath='{.items[0].status.allocatable.pods}'   # 110 with prefix delegation
+```
+
+## Destroy
+
+`destroy-env.sh` destroys layers in reverse order and never touches `00-bootstrap`.
+
+Before it destroys `05-cluster-addons`, or `02-eks` if the add-ons layer isn't there, it checks the cluster for Ingresses, `LoadBalancer` Services and PVCs. It refuses to continue while any remain.
+- **Why it checks:** in-cluster controllers create the matching ALBs/NLBs, EBS volumes and EFS access points, and those aren't in Terraform state. Removing the controllers or the cluster first leaves them behind, and the VPC destroy then hangs on their network interfaces.
+- **What usually trips it:** StatefulSet PVCs. Prometheus, Loki and Tempo keep their PVCs after their Helm releases are removed.
+
+To clear them:
+
+```bash
+kubectl get ingress,svc,pvc -A
+kubectl delete pvc -n monitoring --all     # after 06-monitoring is destroyed
+```

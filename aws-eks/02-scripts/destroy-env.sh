@@ -91,8 +91,15 @@ for layer in "${LAYERS[@]}"; do
   actual_hash="$(sha256sum "$plan_file" | cut -d ' ' -f1)"
   [[ -n "$expected_hash" && "$expected_hash" == "$actual_hash" ]] || { echo "Destroy plan checksum mismatch for $layer" >&2; exit 1; }
 done
+GUARD_INDEX="$(layer_index 05-cluster-addons)"
+GUARD_DONE=false
 for layer in "${LAYERS[@]}"; do
   plan_file="${PLAN_DIR}/${layer}.tfplan"; layer_dir="${LIVE_DIR}/${layer}"
+  # Before the controllers or the cluster go, nothing may still own an ALB or volume.
+  if [[ "$GUARD_DONE" == false ]] && (( $(layer_index "$layer") <= GUARD_INDEX )); then
+    assert_cluster_has_no_aws_backed_objects
+    GUARD_DONE=true
+  fi
   echo "==> Saved destroy plan for $layer:"
   terragrunt --working-dir "$layer_dir" run -- show -no-color "$plan_file"
   read -r -p "DESTROY resources in $layer using this exact plan? Type 'destroy' to continue: " answer
