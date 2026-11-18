@@ -1,0 +1,16 @@
+services:
+  infra-runner:
+    build: .
+    container_name: aws-eks-infra-runner
+    volumes:
+      # Repository root -> /workspace (get_repo_root() resolves here)
+      - ../../.:/workspace
+      # Host AWS CLI/SSO configuration and cached SSO tokens
+      - ~/.aws:/root/.aws
+    environment:
+      # Optional: export AWS_PROFILE on the host to override aws.profile from the infra YAML
+      - AWS_PROFILE
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: bash

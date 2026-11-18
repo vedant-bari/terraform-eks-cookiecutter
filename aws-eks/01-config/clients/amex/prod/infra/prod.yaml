@@ -1,0 +1,81 @@
+# ==============================================================================
+# AWS PLATFORM CONFIGURATION: amex (PRODUCTION ENVIRONMENT)
+# Source of truth for every live unit under aws-eks/04-live/clients/amex/prod.
+#
+# Values marked CHANGE_ME are placeholders. 07-tests/validation/validate_repo.py
+# fails on any CHANGE_ME left in a prod infra file, and the aws provider refuses
+# to run against any account other than aws.account_id.
+# ==============================================================================
+
+client:
+  name: "amex"
+
+environment: "prod"
+
+aws:
+  account_id: "000000000000"      # CHANGE_ME: 12-digit AWS account ID (provider allowed_account_ids guard)
+  region: "ap-south-1"            # Mumbai, counterpart of GCP asia-south1
+  profile: "CHANGE_ME"            # AWS CLI / SSO profile used by Terragrunt and the scripts; "" = default credential chain
+  # Every layer after 00-bootstrap assumes the deploy role created by 00-bootstrap.
+  assume_deploy_role: true
+  # Applied to every Terraform-managed resource via provider default_tags.
+  # Owner and CostCenter are required; the validator rejects CHANGE_ME in prod.
+  tags:
+    Client: "amex"
+    Environment: "prod"
+    ManagedBy: "terragrunt"
+    Owner: "CHANGE_ME"
+    CostCenter: "CHANGE_ME"
+
+# Terraform state bucket and deploy role (00-bootstrap).
+bootstrap:
+  # Optional override. Default: <client>-<env>-tfstate-<account_id>.
+  state_bucket_name: ""
+  force_destroy: false
+  noncurrent_versions_to_keep: 5   # Same retention as the GCP bucket lifecycle rule
+  kms_key_arn: ""                  # "" = SSE-S3 (AES256); set a CMK ARN to use SSE-KMS
+  account_ebs_encryption_by_default: true
+  deploy_role:
+    name: ""                       # Default: <client>-<env>-terraform-deploy
+    # Principals allowed to assume the deploy role. Empty = any IAM principal in
+    # this account that is itself allowed sts:AssumeRole on it.
+    trusted_principal_arns: []
+    managed_policy_arns:
+      - "arn:aws:iam::aws:policy/AdministratorAccess"
+    max_session_duration_seconds: 3600
+
+# Network (01-network -> 03-modules/02-vpc).
+# GCP: one /24 subnet with secondary ranges pods 10.1.0.0/18, services 10.2.0.0/20.
+# AWS: pods take IPs from the node subnets (VPC CNI), so the private subnets are
+# /19 to fit prefix delegation. The services CIDR (10.2.0.0/20) is set on the
+# EKS cluster in Phase 2 and must not overlap this VPC.
+vpc:
+  name: ""                         # Default: <client>-<env>-vpc
+  cidr: "10.100.0.0/16"
+  azs: ["ap-south-1a", "ap-south-1b", "ap-south-1c"]   # Must match aws.region
+  private_subnet_cidrs:            # Nodes and pods, one per AZ (8,190 IPs each)
+    - "10.100.0.0/19"
+    - "10.100.32.0/19"
+    - "10.100.64.0/19"
+  public_subnet_cidrs:             # Internet-facing ALBs and NAT only
+    - "10.100.96.0/24"
+    - "10.100.97.0/24"
+    - "10.100.98.0/24"
+  nat_gateway_per_az: false        # Class B: true = one NAT per AZ (about $35/month each)
+  flow_logs:
+    enabled: true
+    traffic_type: "ALL"
+    max_aggregation_interval: 60   # AWS minimum; GCP used 5 s with 0.5 sampling
+    retention_days: 30
+    force_destroy: true            # Bucket and logs are deleted with the environment, like GCP
+  s3_gateway_endpoint: true        # Free; stand-in for Private Google Access
+  interface_endpoints:             # Class B: about $7 per endpoint per AZ per month
+    enabled: false
+    services: ["ecr.api", "ecr.dkr", "sts", "secretsmanager", "logs"]
+
+# Cost controls. The aws_budgets_budget resource is added in Phase 8.
+budget:
+  monthly_limit_usd: "CHANGE_ME"
+  alert_emails:
+    - "CHANGE_ME"
+  alert_thresholds_percent: [80, 100]
