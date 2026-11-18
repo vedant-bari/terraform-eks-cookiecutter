@@ -1,0 +1,187 @@
+# Jenkins Helm values (07-jenkins -> 03-modules/10-jenkins), ported from gcp-gke.
+# Rendered with templatefile(); placeholders filled by the module:
+#   cluster_endpoint, cluster_ca_certificate  EKS API for the Kubernetes cloud
+#   storage_class, access_mode                from infra jenkins.persistence (EFS RWX or gp3 RWO)
+#   aws_region                                region for the AWS CLI in the agent
+# A literal dollar-brace sequence must be escaped by doubling the dollar sign.
+#
+# Differences from gcp-gke:
+#   - Ingress: ingressClassName alb (no class annotation), internet-facing ALB,
+#     IP targets, health check on /login (/ returns 403 when logged out)
+#   - Agent tool container "aws" (alpine/k8s: AWS CLI + kubectl) replaces "gcloud"
+#   - Plugin and agent image versions are pinned
+#   - persistence moved to the top level, where the chart reads it (see below)
+controller:
+  component: "jenkins-master"
+  installWizard: false
+
+  image:
+    registry: "docker.io"
+    repository: "jenkins/jenkins"
+    tag: "2.579"
+
+  agentKubernetesProfile:
+    # Ensure Jenkins agents spawn using the Terraform-managed KSA
+    serviceAccount: "jenkins-agent"
+
+  javaOpts: "-Djenkins.install.runSetupWizard=false"
+
+  serviceType: "ClusterIP"
+
+  testEnabled: false
+
+  admin:
+    username: "admin"
+    password: "adminPassword123"
+
+  ingress:
+    enabled: true
+    ingressClassName: "alb"
+    pathType: "Prefix"
+    path: "/"
+    annotations:
+      alb.ingress.kubernetes.io/scheme: "internet-facing"
+      alb.ingress.kubernetes.io/target-type: "ip"
+      alb.ingress.kubernetes.io/healthcheck-path: "/login"
+
+  # Pinned to versions whose requiredCore is <= the controller tag (Jenkins
+  # update center, 2026-11-19). Dependencies resolve to compatible versions.
+  installPlugins:
+    - kubernetes:4560.vc25b_83890c34
+    - workflow-aggregator:608.v67378e9d3db_1
+    - git:5.11.0
+    - configuration-as-code:2147.v8a_8d38668c72
+    - credentials:1514.vb_01eb_014e7d4
+    - job-dsl:3752.vb_199526b_20c3
+    - pipeline-stage-view:2.41
+    - kubernetes-credentials-provider:1.324.v5271cd145cb_1
+
+  JCasC:
+    defaultConfig: false
+    configScripts:
+      jenkins-automation-config: |
+        jenkins:
+          securityRealm:
+            local:
+              allowsSignup: false
+              users:
+                - id: "admin"
+                  password: "adminPassword123"
+
+          authorizationStrategy:
+            loggedInUsersCanDoAnything:
+              allowAnonymousRead: false
+
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                serverUrl: "${cluster_endpoint}"
+                credentialsId: ""
+                serverCertificate: "${cluster_ca_certificate}"
+                namespace: "jenkins"
+                jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+                jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+                containerCapStr: "10"
+
+                templates:
+                  - name: "docker-agent"
+                    label: "docker-agent"
+                    namespace: "jenkins"
+
+                    yaml: |
+                      apiVersion: v1
+                      kind: Pod
+
+                      metadata:
+                        labels:
+                          app: jenkins-docker-agent
+
+                      spec:
+                        restartPolicy: Never
+                        serviceAccountName: "jenkins-agent"
+                        containers:
+                          - name: jnlp
+                            image: jenkins/inbound-agent:3395.v6e5377b_0fb_3c-5-jdk21
+                            workingDir: /home/jenkins/agent
+
+                          - name: docker
+                            image: docker:27-cli
+                            command:
+                              - sh
+                              - -c
+                              - |
+                                echo "Docker CLI container started"
+                                echo "Waiting for Docker daemon..."
+
+                                until wget -qO- http://127.0.0.1:2375/_ping 2>/dev/null | grep -q OK; do
+                                  echo "Docker daemon not ready..."
+                                  sleep 2
+                                done
+
+                                echo "Docker daemon is ready!"
+
+                                while true; do
+                                  sleep 3600
+                                done
+
+                            env:
+                              - name: DOCKER_HOST
+                                value: tcp://127.0.0.1:2375
+
+                            volumeMounts:
+                              - name: workspace-volume
+                                mountPath: /workspace
+
+                          - name: docker-dind
+                            image: docker:27-dind
+                            securityContext:
+                              privileged: true
+                            command:
+                              - dockerd
+                            args:
+                              - --host=tcp://0.0.0.0:2375
+                              - --host=unix:///var/run/docker.sock
+                              - --storage-driver=overlay2
+                            env:
+                              - name: DOCKER_TLS_CERTDIR
+                                value: ""
+                            ports:
+                              - name: docker
+                                containerPort: 2375
+                            volumeMounts:
+                              - name: docker-storage
+                                mountPath: /var/lib/docker
+                              - name: workspace-volume
+                                mountPath: /workspace
+
+                          # AWS CLI + kubectl for ECR login and kubectl set image.
+                          # Credentials come from the jenkins-agent Pod Identity role.
+                          - name: aws
+                            image: alpine/k8s:1.35.10
+                            command:
+                              - cat
+                            tty: true
+                            workingDir: /home/jenkins/agent
+                            env:
+                              - name: AWS_REGION
+                                value: "${aws_region}"
+                              - name: AWS_DEFAULT_REGION
+                                value: "${aws_region}"
+
+                        volumes:
+                          - name: docker-storage
+                            emptyDir: {}
+                          - name: workspace-volume
+                            emptyDir: {}
+
+agent:
+  enabled: false
+
+# JENKINS_HOME volume. The chart reads persistence at the top level; gcp-gke
+# nests it under controller:, where it is ignored (its home falls back to an
+# 8Gi standard-rwo disk instead of Filestore).
+persistence:
+  enabled: true
+  accessMode: "${access_mode}"
+  storageClass: "${storage_class}"
+  size: 20Gi

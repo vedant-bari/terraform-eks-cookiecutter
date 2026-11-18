@@ -5,7 +5,7 @@ This is the AWS EKS counterpart of [`../gcp-gke`](../gcp-gke). It uses the same 
 - Thin Terragrunt units in `04-live` read that config.
 - The units call reusable Terraform modules in `03-modules`.
 
-> **Status:** it is being built phase by phase. Phases 0 (bootstrap and tooling), 1 (network), 2 (EKS), 3 (ECR, storage), 4 (cluster add-ons) and 5 (monitoring) exist so far.
+> **Status:** it is being built phase by phase. Phases 0 (bootstrap and tooling), 1 (network), 2 (EKS), 3 (ECR, storage), 4 (cluster add-ons), 5 (monitoring) and 6 (Jenkins) exist so far.
 
 ## Layout
 
@@ -31,7 +31,7 @@ They run in dependency order. Every layer except bootstrap is created by the scr
 | 04 | storage: default encrypted gp3 StorageClass; encrypted EFS + `<client>-<env>-rwx` StorageClass | ✅ |
 | 05 | cluster-addons: AWS Load Balancer Controller, Cluster Autoscaler (Helm, Pod Identity). Secrets driver (ASCP) is an EKS add-on in 02-eks | ✅ |
 | 06 | monitoring: kube-prometheus-stack, Loki, Alloy, Tempo (same charts and values as gcp-gke, on gp3) | ✅ |
-| 07 | jenkins | Phase 6 |
+| 07 | jenkins: chart 5.10.0 behind an ALB, home on EFS (gp3 option), agents with a Pod Identity role scoped to ECR `<client>-<env>/*` | ✅ |
 | 08 | applications | Phase 7 |
 
 ## Conventions

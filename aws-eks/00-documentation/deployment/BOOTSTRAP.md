@@ -143,6 +143,27 @@ kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80
 # http://localhost:3000 -> Connections > Data sources: Prometheus, Loki, Tempo
 ```
 
+## Jenkins (07-jenkins)
+
+```bash
+kubectl -n jenkins get pods,pvc,ingress     # PVC on amex-prod-rwx (EFS), Ingress with an ALB address
+kubectl -n jenkins get ingress jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+# http://<that hostname>/login  (admin user from jenkins/<env>.yaml; HTTP only, as on GCP)
+```
+
+Agent smoke test, as a throwaway pipeline job:
+
+```groovy
+podTemplate(inheritFrom: 'docker-agent') {
+  node(POD_LABEL) {
+    container('aws') {
+      sh 'aws sts get-caller-identity'   // assumed-role/<cluster>-jenkins-agent/...
+      sh 'aws ecr get-login-password >/dev/null && echo ECR login OK'
+    }
+  }
+}
+```
+
 ## Destroy
 
 `destroy-env.sh` destroys layers in reverse order and never touches `00-bootstrap`.

@@ -176,6 +176,13 @@ cluster_addons:
       skip-nodes-with-local-storage: "false" # Allow scale-down of nodes with emptyDir pods, like GKE
       expander: "least-waste"
 
+# Jenkins (07-jenkins -> 03-modules/10-jenkins). Helm values: jenkins/<env>.yaml.
+jenkins:
+  chart_version: "5.10.0"          # Same chart as gcp-gke
+  persistence:
+    storage: "rwx"                 # "rwx" = EFS (GCP parity); "block" = gp3 RWO, faster (Jenkins runs 1 replica)
+  cluster_wide_rbac: true          # Class B: false = agents deploy only via the per-namespace Roles from 08-applications
+
 # Cost controls. The aws_budgets_budget resource is added in Phase 8.
 budget:
   monthly_limit_usd: "CHANGE_ME"
