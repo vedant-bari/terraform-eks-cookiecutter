@@ -105,6 +105,10 @@ locals {
       aws-efs-csi-driver = {
         pod_identity_role = "efs-csi"
       }
+      # Secrets Store CSI driver + AWS provider (ASCP), the counterpart of the
+      # GKE Secret Manager add-on. No role of its own: each app pod reads its
+      # secrets with its own Pod Identity (usePodIdentity in the SecretProviderClass).
+      aws-secrets-store-csi-driver-provider = {}
     },
     var.container_insights_enabled ? {
       amazon-cloudwatch-observability = {

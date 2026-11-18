@@ -103,6 +103,30 @@ kubectl delete pvc rwx-test     # Removes the access point
 
 A gp3 PVC stays `Pending` until a pod uses it (`WaitForFirstConsumer`), which is expected.
 
+## Verify cluster add-ons (after 05-cluster-addons)
+
+```bash
+kubectl -n kube-system get deploy aws-load-balancer-controller cluster-autoscaler
+kubectl get ingressclass alb
+kubectl -n kube-system get pods -l app=secrets-store-csi-driver   # ASCP add-on (from 02-eks)
+
+# Ingress -> ALB (public subnets, IP targets). The address appears after 1-3 minutes.
+kubectl create deployment echo --image=public.ecr.aws/nginx/nginx:stable --port=80
+kubectl expose deployment echo --port=80
+kubectl create ingress echo --class=alb --rule='/*=echo:80' \
+  --annotation alb.ingress.kubernetes.io/scheme=internet-facing \
+  --annotation alb.ingress.kubernetes.io/target-type=ip
+kubectl get ingress echo -w
+
+# Scale-out: requests more CPU than the nodes have, so new nodes join (up to max_size).
+kubectl scale deployment echo --replicas=30
+kubectl set resources deployment echo --requests=cpu=500m
+kubectl -n kube-system logs deploy/cluster-autoscaler | grep -i "scale-up"
+
+# Clean up: delete the Ingress first so the ALB is removed.
+kubectl delete ingress echo && kubectl delete svc,deployment echo
+```
+
 ## Destroy
 
 `destroy-env.sh` destroys layers in reverse order and never touches `00-bootstrap`.

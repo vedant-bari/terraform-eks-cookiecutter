@@ -130,6 +130,7 @@ eks:
     aws-ebs-csi-driver: ""
     aws-efs-csi-driver: ""
     amazon-cloudwatch-observability: ""
+    aws-secrets-store-csi-driver-provider: ""   # ASCP + Secrets Store CSI driver (GKE Secret Manager add-on)
 
 # Container registry (03-ecr -> 03-modules/11-ecr).
 # GCP: one Artifact Registry repo for all images. ECR: one repository per image,
@@ -158,6 +159,22 @@ storage:
     uid: 1000                      # EFS ignores fsGroup; must match the workload user (Jenkins = 1000)
     gid: 1000
     directory_perms: "700"
+
+# Helm-installed controllers (05-cluster-addons -> 03-modules/09-cluster-addons).
+# GKE has these built in. The ASCP secrets driver is an EKS add-on (eks.addon_versions).
+cluster_addons:
+  lb_controller:                   # GKE HTTP load balancing: Ingress -> ALB
+    chart_version: "3.6.3"         # https://aws.github.io/eks-charts
+    replica_count: 2
+    service_account: "aws-load-balancer-controller"
+  cluster_autoscaler:              # GKE node pool autoscaling (eks.node_group min/max)
+    chart_version: "9.59.0"        # https://kubernetes.github.io/autoscaler (app 1.35)
+    image_tag: "v1.35.0"           # Must match eks.kubernetes_version; bump them together
+    service_account: "cluster-autoscaler"
+    extra_args:
+      balance-similar-node-groups: "true"   # Spread evenly when node_azs has several AZs
+      skip-nodes-with-local-storage: "false" # Allow scale-down of nodes with emptyDir pods, like GKE
+      expander: "least-waste"
 
 # Cost controls. The aws_budgets_budget resource is added in Phase 8.
 budget:
