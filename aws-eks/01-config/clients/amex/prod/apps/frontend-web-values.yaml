@@ -1,0 +1,119 @@
+# frontend-web (08-applications -> 03-modules/06-app-deploy -> 05-helm-charts/generic-app)
+# Ported from gcp-gke; see backend-web-values.yaml for the list of changes.
+apps:
+  enabled: true
+client:
+  name: "amex"
+environment: "prod"
+
+releaseName: next-js-web-prod
+timeout: 1200
+
+namespace:
+  create: true
+  name: next-js-web-prod
+
+serviceAccount:
+  create: true
+  name: next-js-web-prod-sa
+
+image:
+  # Image name only; 06-app-deploy rewrites it to the ECR repository URL when ecr.enabled.
+  repository: sample-next-js
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  enabled: true
+  port: 3000
+  targetPort: 3000
+  type: ClusterIP
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+persistence:
+  enabled: true
+  storageClassName: "amex-prod-rwx" # EFS class from 04-storage (same name as GCP Filestore)
+  accessMode: ReadWriteMany
+  size: 100Gi                       # EFS ignores the size; kept for parity
+  mountPath: /var/log
+
+# --- INGRESS CONFIGURATION ---
+ingress:
+  enabled: true
+  className: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+configMap:
+  enabled: true
+  data:
+    APP_THEME: "dark"
+
+secret:
+  enabled: false
+  data: {}
+
+# --- AWS SECRETS MANAGER INTEGRATION ---
+secretsManager:
+  enabled: true
+  secrets:
+    - key: "NEXT_PUBLIC_API_URL"
+      secretId: "NEXT_PUBLIC_API_URL"
+      secretValue: "https://jsonplaceholder.typicode.com/posts/1"
+
+env:
+  - name: NEXT_PUBLIC_API_URL
+    value: "https://jsonplaceholder.typicode.com/posts/1"
+
+probes:
+  startup:
+    enabled: true
+    path: /
+    port: 3000
+    initialDelaySeconds: 0
+  readiness:
+    enabled: true
+    path: /
+    port: 3000
+    initialDelaySeconds: 0
+  liveness:
+    enabled: true
+    path: /
+    port: 3000
+    initialDelaySeconds: 0
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# --- AMAZON ECR ---
+ecr:
+  enabled: true
+
+##jenkins
+jenkinsPipeline:
+  enabled: true
+  gitUrl: "https://github.com/vedant-bari/sample-next-js.git"
+  branch: "master"
+  credentials:
+    ##give a unique name to id
+    - id: "next-js-web-prod-github-vedant-bari"
+      type: "usernamePassword"
+      username: "ghp"
+      secretValue: "ghp"

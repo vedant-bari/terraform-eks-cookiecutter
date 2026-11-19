@@ -78,6 +78,7 @@ locals {
     storage        = try(local.yaml_data.storage, {})
     cluster_addons = try(local.yaml_data.cluster_addons, {})
     jenkins        = try(local.yaml_data.jenkins, {})
+    applications   = try(local.yaml_data.applications, {})
   }
 
   # Stable logical state identity; preserve these keys across live-directory renames.

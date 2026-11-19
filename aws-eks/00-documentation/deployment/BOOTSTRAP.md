@@ -164,6 +164,27 @@ podTemplate(inheritFrom: 'docker-agent') {
 }
 ```
 
+## Applications (08-applications)
+
+On the first deploy the app pods sit in `ImagePullBackOff` for a few minutes. That is expected: the ECR repositories are empty until each app's Jenkins job (created and triggered by the sync Job) builds and pushes the image and runs `kubectl set image`.
+
+```bash
+kubectl -n jenkins get jobs -l app=jenkins-sync            # Completed
+kubectl -n backend-web-prod get deploy,pods,ingress,pvc    # Ready after the first build; ALB address on the Ingress
+kubectl -n backend-web-prod exec deploy/backend-web-prod -- ls /mnt/secrets   # DB_PASSWORD  JWT_SECRET
+aws ecr list-images --repository-name amex-prod/sample-flask-app             # :<git sha> and :latest
+```
+
+Secrets are named `<client>/<env>/<release>/<secretId>`, for example `amex/prod/backend-web-prod/backend-db-password`.
+
+Deleted secrets stay restorable for `applications.secrets_manager.recovery_window_in_days` (7). During that window the same name cannot be created again, so redeploying an app right after destroying it fails until you restore the secret or remove it for good:
+
+```bash
+aws secretsmanager restore-secret --secret-id amex/prod/backend-web-prod/backend-db-password
+# or, to free the name permanently:
+aws secretsmanager delete-secret --secret-id amex/prod/backend-web-prod/backend-db-password --force-delete-without-recovery
+```
+
 ## Destroy
 
 `destroy-env.sh` destroys layers in reverse order and never touches `00-bootstrap`.

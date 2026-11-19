@@ -1,0 +1,22 @@
+{{- if .Values.pdb.enabled -}}
+{{- /*
+Optional PodDisruptionBudget, so Cluster Autoscaler scale-down and node
+upgrades never evict every replica at once. Off by default (GCP parity).
+*/ -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "generic-app.fullname" . }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "generic-app.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.pdb.minAvailable }}
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ .Values.pdb.maxUnavailable | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "generic-app.selectorLabels" . | nindent 6 }}
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: generic-app
+description: A generic Helm chart for deploying applications on EKS with probes, file storage (EFS/EBS), ALB ingress and AWS Secrets Manager secrets.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

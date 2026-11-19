@@ -183,6 +183,17 @@ jenkins:
     storage: "rwx"                 # "rwx" = EFS (GCP parity); "block" = gp3 RWO, faster (Jenkins runs 1 replica)
   cluster_wide_rbac: true          # Class B: false = agents deploy only via the per-namespace Roles from 08-applications
 
+# Applications (08-applications -> 03-modules/06-app-deploy -> 05-helm-charts/generic-app).
+# Per-app settings live in apps/*.yaml; these apply to all apps.
+applications:
+  secrets_manager:
+    # Days a deleted secret stays restorable. While it is pending deletion the
+    # same name cannot be recreated (aws secretsmanager restore-secret, or wait).
+    # 0 = immediate delete, as on GCP.
+    recovery_window_in_days: 7
+    kms_key_arn: ""                # "" = AWS managed key aws/secretsmanager
+  jenkins_sync_image: "python:3.11.18-slim"   # Runs the job-sync script (GCP: python:3.11-slim, unpinned)
+
 # Cost controls. The aws_budgets_budget resource is added in Phase 8.
 budget:
   monthly_limit_usd: "CHANGE_ME"

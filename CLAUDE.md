@@ -15,10 +15,10 @@ Editing files never touches cloud resources; only running Terragrunt does. Do no
 
 ## aws-eks
 
-The old half-migrated tree was removed (recoverable from git history). The new tree mirrors `gcp-gke/`'s layout, so read [aws-eks/README.md](aws-eks/README.md) first. Phases 0 (bootstrap, scripts, tooling), 1 (`01-network` → `03-modules/02-vpc`) 2 (`02-eks` → `03-modules/04-eks`) 3 (`03-ecr` → `11-ecr`, `04-storage` → `07-storage-class`) 4 (`05-cluster-addons` → `09-cluster-addons`) 5 (`06-monitoring` → `05-monitoring`) and 6 (`07-jenkins` → `10-jenkins`) exist so far.
+The old half-migrated tree was removed (recoverable from git history). The new tree mirrors `gcp-gke/`'s layout, so read [aws-eks/README.md](aws-eks/README.md) first. Phases 0 (bootstrap, scripts, tooling), 1 (`01-network` → `03-modules/02-vpc`) 2 (`02-eks` → `03-modules/04-eks`) 3 (`03-ecr` → `11-ecr`, `04-storage` → `07-storage-class`) 4 (`05-cluster-addons` → `09-cluster-addons`) 5 (`06-monitoring` → `05-monitoring`) 6 (`07-jenkins` → `10-jenkins`) and 7 (`08-applications` → `06-app-deploy` + `05-helm-charts/generic-app`) exist so far.
 
 **Config and generated files**
-- **Config:** `aws-eks/01-config/clients/<client>/<env>/infra/<env>.yaml`, with keys `aws.{account_id,region,profile,assume_deploy_role,tags}`, `bootstrap.*`, `vpc.*`, `eks.*`, `ecr.*`, `storage.*`, `cluster_addons.*`, `jenkins.*` and `budget.*`. Each block is exposed by `root.hcl` as `config.<block>`.
+- **Config:** `aws-eks/01-config/clients/<client>/<env>/infra/<env>.yaml`, with keys `aws.{account_id,region,profile,assume_deploy_role,tags}`, `bootstrap.*`, `vpc.*`, `eks.*`, `ecr.*`, `storage.*`, `cluster_addons.*`, `jenkins.*`, `applications.*` and `budget.*`. Each block is exposed by `root.hcl` as `config.<block>`.
 - **Missing or invalid YAML is a hard error** in `aws-eks/04-live/root.hcl`. There is no `try(..., {})` fallback.
 - **`root.hcl` generates `provider.tf` as well as `backend.tf`.**
   - The S3 backend uses `use_lockfile`. Its key is `aws-eks/<client>/<env>/<layer-key>/terraform.tfstate`, taken from the `state_layer_keys` map.
@@ -27,6 +27,7 @@ The old half-migrated tree was removed (recoverable from git history). The new t
 - **Version coupling:** `cluster_addons.cluster_autoscaler.image_tag` must match `eks.kubernetes_version` (variable validation enforces it), and the ASCP secrets driver is the EKS add-on `aws-secrets-store-csi-driver-provider`, not a Helm release.
 - **Monitoring values** live in `01-config/.../monitoring-and-logging/<env>.yaml` and are kept identical to gcp-gke apart from `gp3` and the disabled EKS control-plane scrapes. A precondition fails if any `storageClass`/`storageClassName` there differs from the 04-storage class. `GRAFANA_ADMIN_PASSWORD` (12+ characters) must be exported to plan it.
 - **Jenkins values** (`01-config/.../jenkins/<env>.yaml`) are a `templatefile()` template, so a literal dollar-brace must be escaped by doubling the dollar sign. In jenkins chart 5.x `persistence:` is top-level (gcp-gke nests it under `controller:`, where it is ignored).
+- **App YAMLs** (`01-config/.../apps/*-values.yaml`) use `ecr`, `secretsManager` and `ingress.className: alb` (AWS names for gcp-gke's `artifactRegistry`, `secretManager`, `gce`). The module strips `secretValue` and `jenkinsPipeline` before passing values to Helm, and releases use `wait = false` because images exist only after the first Jenkins build. The job XML template is XML, so its Groovy must not contain a raw `<` or `&`.
 - **ECR repositories are derived** from `apps/*.yaml` files with `ecr.enabled: true` (basename of `image.repository`), plus `ecr.additional_repositories`.
 - **Names are derived:**
   - prefix `<client>-<env>`

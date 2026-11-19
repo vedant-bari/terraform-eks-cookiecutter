@@ -1,0 +1,128 @@
+# backend-web (08-applications -> 03-modules/06-app-deploy -> 05-helm-charts/generic-app)
+# Ported from gcp-gke. Changes:
+#   - gcpProject / googleServiceAccountName / iam.gke.io annotation removed:
+#     06-app-deploy creates an IAM role and an EKS Pod Identity association for
+#     namespace.name / serviceAccount.name
+#   - artifactRegistry -> ecr (03-ecr creates <client>-<env>/<basename of image.repository>)
+#   - secretManager -> secretsManager (AWS Secrets Manager, mounted by ASCP at /mnt/secrets)
+#   - ingress: className alb only (no class annotation), internet-facing ALB, IP targets
+apps:
+  enabled: true
+client:
+  name: "amex"
+environment: "prod"
+releaseName: backend-web-prod
+timeout: 1200
+
+namespace:
+  create: true
+  name: backend-web-prod
+
+serviceAccount:
+  create: true
+  name: backend-web-prod-sa
+
+image:
+  # Image name only; 06-app-deploy rewrites it to the ECR repository URL when ecr.enabled.
+  repository: sample-flask-app
+  tag: "latest"
+  pullPolicy: Always # Pull the image the pipeline pushed on every rollout
+
+service:
+  enabled: true
+  port: 8000       # The port exposed by the Kubernetes service
+  targetPort: 8000 # The port the Flask app listens on inside the container
+  type: ClusterIP
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+persistence:
+  enabled: true
+  storageClassName: "amex-prod-rwx" # EFS class from 04-storage (same name as GCP Filestore)
+  accessMode: ReadWriteMany
+  size: 100Gi                       # EFS ignores the size; kept for parity
+  mountPath: /var/log
+
+# --- INGRESS CONFIGURATION ---
+ingress:
+  enabled: true
+  className: "alb"
+  annotations:
+    alb.ingress.kubernetes.io/scheme: "internet-facing"
+    alb.ingress.kubernetes.io/target-type: "ip"
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+configMap:
+  enabled: true
+  data:
+    FLASK_ENV: "production"
+    PORT: "8000"
+    LOG_LEVEL: "info"
+
+secret:
+  enabled: false
+  data: {}
+
+# --- AWS SECRETS MANAGER INTEGRATION ---
+# Each secret is created as <client>/<env>/<releaseName>/<secretId> and mounted
+# at /mnt/secrets/<key>. Values here are seed values (GCP parity: plaintext in git).
+secretsManager:
+  enabled: true
+  secrets:
+    - secretId: "backend-db-password"
+      secretValue: "fallback-db-pass"
+      key: "DB_PASSWORD"
+    - secretId: "backend-jwt-secret"
+      secretValue: "fallback-jwt-secret"
+      key: "JWT_SECRET"
+
+env:
+  - name: APP_NAME
+    value: "backend-web-prod-service"
+
+# --- HEALTH PROBES (Targeting port 8000) ---
+probes:
+  startup:
+    enabled: true
+    path: /
+    port: 8000
+  readiness:
+    enabled: true
+    path: /
+    port: 8000
+  liveness:
+    enabled: true
+    path: /
+    port: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# --- AMAZON ECR ---
+ecr:
+  enabled: true
+
+##jenkins
+jenkinsPipeline:
+  enabled: true
+  gitUrl: "https://github.com/vedant-bari/flask-ci-cd.git"
+  branch: "main"
+  credentials:
+    - id: "backend-web-prod-github-vedant-bari"
+      type: "usernamePassword"
+      username: "ghp"
+      secretValue: "ghp"

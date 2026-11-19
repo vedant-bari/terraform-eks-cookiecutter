@@ -1,0 +1,96 @@
+# Default values for generic-app (AWS EKS port of gcp-gke/05-helm-charts/generic-app).
+# Differences from gcp-gke: ingress class alb, secretsManager (ASCP) instead of
+# secretManager (GKE provider), no gcpProject / Workload Identity annotation,
+# optional PodDisruptionBudget.
+
+releaseName: ""
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: false
+  name: "default"
+
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "stable-alpine"
+
+replicaCount: 1
+
+# AWS identity comes from an EKS Pod Identity association on namespace/name,
+# created by 06-app-deploy; no annotation is needed.
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Set the class with className only. The chart fails if the
+# kubernetes.io/ingress.class annotation is also set (the API rejects both).
+ingress:
+  enabled: false
+  className: "alb"
+  annotations: {}
+  hosts: []
+  tls: []
+
+persistence:
+  enabled: false
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  mountPath: /data
+
+configMap:
+  enabled: false
+  data: {}
+
+secret:
+  enabled: false
+  data: {}
+
+# AWS Secrets Manager via the Secrets Store CSI driver + AWS provider (ASCP).
+# Mounted read-only at /mnt/secrets/<key>.
+secretsManager:
+  enabled: false
+  driver: "secrets-store.csi.k8s.io"
+  secrets: []
+
+pdb:
+  enabled: false
+  minAvailable: ""
+  maxUnavailable: 1
+
+env: []
+envFromSecrets: []
+
+securityContext: {}
+
+resources: {}
+
+probes:
+  startup:
+    enabled: false
+    path: /
+    port: 80
+  readiness:
+    enabled: false
+    path: /
+    port: 80
+  liveness:
+    enabled: false
+    path: /
+    port: 80
